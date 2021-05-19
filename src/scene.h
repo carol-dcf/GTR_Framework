@@ -4,15 +4,14 @@
 #include "framework.h"
 #include "camera.h"
 #include <string>
+#include "fbo.h"
 
 //forward declaration
-class cJSON; 
+class cJSON;
 
 
 //our namespace
 namespace GTR {
-
-
 
 	enum eEntityType {
 		NONE = 0,
@@ -21,6 +20,12 @@ namespace GTR {
 		CAMERA = 3,
 		REFLECTION_PROBE = 4,
 		DECALL = 5
+	};
+
+	enum eLightType {
+		DIRECTIONAL = 0,
+		POINT = 1,
+		SPOT = 2
 	};
 
 	class Scene;
@@ -47,11 +52,35 @@ namespace GTR {
 	public:
 		std::string filename;
 		Prefab* prefab;
-		
+
 		PrefabEntity();
 		virtual void renderInMenu();
 		virtual void configure(cJSON* json);
 	};
+
+	//represents one prefab in the scene
+	class LightEntity : public GTR::BaseEntity
+	{
+	public:
+		Vector3 color;
+		float intensity;
+		eLightType light_type;
+		float max_distance;
+		float cone_angle;
+		float area_size;
+		float exponent;
+		Camera* light_camera;
+		FBO fbo;
+		Texture* shadow_buffer;
+		float bias;
+		Vector3 target;
+
+		LightEntity();
+		virtual void renderInMenu();
+		virtual void configure(cJSON* json);
+		void setUniforms(Shader* shader);
+	};
+
 
 	//contains all entities of the scene
 	class Scene
