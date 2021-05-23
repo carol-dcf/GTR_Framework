@@ -208,7 +208,7 @@ void GTR::LightEntity::renderInMenu()
 	}
 
 	ImGui::ColorEdit4("Light color", this->color.v);
-	ImGui::SliderFloat("Intensity", &this->intensity, 0, 10);
+	ImGui::SliderFloat("Intensity", &this->intensity, 0, 30);
 	if (this->light_type == SPOT) {
 		ImGui::SliderFloat("Cone Angle", &this->cone_angle, 0, 90);
 		ImGui::SliderFloat("Exponent", &this->exponent, 1, 50);

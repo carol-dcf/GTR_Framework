@@ -105,7 +105,6 @@ void GTR::Renderer::collectRCsandLights(GTR::Scene* scene, Camera* camera)
 
 }
 
-
 void Renderer::renderToFBOForward(GTR::Scene* scene, Camera* camera)
 {
 	float w = Application::instance->window_width;
@@ -139,7 +138,6 @@ void Renderer::renderToFBOForward(GTR::Scene* scene, Camera* camera)
 		zshader->disable();
 	}*/
 }
-
 
 void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 	if (pipeline_mode == DEFERRED) {
@@ -202,6 +200,7 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 			ambient_shader->enable();
 			ambient_shader->setUniform("u_ambient_light", scene->ambient_light);
 			ambient_shader->setUniform("u_color_texture", gbuffers_fbo.color_textures[0], 0);
+			ambient_shader->setUniform("u_metallic_roughness_texture", gbuffers_fbo.color_textures[2], 1);
 
 			glViewport(0.0f, 0.0f, w, h);
 			gbuffers_fbo.color_textures[0]->toViewport(ambient_shader);
@@ -242,8 +241,7 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 
 	sh->setUniform("u_ambient_light", scene->ambient_light);
 	sh->setUniform("u_viewprojection", camera->viewprojection_matrix);
-
-	sh->setUniform("u_ambient_light", Vector3(0, 0, 0));
+	sh->setUniform("u_camera_eye", camera->eye);
 
 	bool first = true;
 	glEnable(GL_CULL_FACE);
@@ -277,7 +275,7 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 
 			sphere->render(GL_TRIANGLES);
 		}
-		/*if (lent->light_type == DIRECTIONAL) {
+		if (lent->light_type == DIRECTIONAL) {
 			Mesh* quad = Mesh::getQuad();
 
 			Shader* s = Shader::Get("deferred");
@@ -297,11 +295,10 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 			s->setUniform("u_ambient_light", scene->ambient_light);
 			s->setUniform("u_viewprojection", camera->viewprojection_matrix);
 
-			s->setUniform("u_ambient_light", Vector3(0, 0, 0));
 
 			quad->render(GL_TRIANGLES);
 			s->disable();
-		}*/
+		}
 	}
 
 	glFrontFace(GL_CCW);
@@ -335,8 +332,7 @@ void Renderer::renderMeshDeferred(const Matrix44 model, Mesh* mesh, GTR::Materia
 
 	if (material->alpha_mode == GTR::eAlphaMode::BLEND)
 	{
-		glEnable(GL_BLEND);
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		return;
 	}
 	else
 		glDisable(GL_BLEND);
@@ -362,12 +358,12 @@ void Renderer::renderMeshDeferred(const Matrix44 model, Mesh* mesh, GTR::Materia
 	if (normal_texture) shader->setUniform("u_normal_texture", normal_texture, 1);
 	if (mat_properties_texture) shader->setUniform("u_mat_properties_texture", mat_properties_texture, 2);
 	shader->setUniform("u_read_normal", read_normal);
+	shader->setUniform("u_alpha_cutoff", material->alpha_mode == GTR::eAlphaMode::MASK ? material->alpha_cutoff : 0);
 
 	mesh->render(GL_TRIANGLES);
 	shader->disable();
 	glDisable(GL_BLEND);
 }
-
 
 void Renderer::renderScene(GTR::Scene* scene, Camera* camera)
 {
@@ -718,7 +714,6 @@ void GTR::Renderer::getShadows(const Matrix44 model, Mesh* mesh, GTR::Material* 
 	glDisable(GL_BLEND);
 }
 
-
 void GTR::Renderer::joinGbuffers(GTR::Scene* scene, Camera* camera)
 {
 	float w = Application::instance->window_width;
@@ -748,45 +743,6 @@ void GTR::Renderer::joinGbuffers(GTR::Scene* scene, Camera* camera)
 	//pass all the information about the light and ambient…
 	sh->setUniform("u_ambient_light", scene->ambient_light);
 
-	//sh->setUniform("u_viewprojection", camera->viewprojection_matrix);
-
-	/*glEnable(GL_DEPTH_TEST);
-	glDepthFunc(GL_LESS);
-	//we must accumulate the light contribution of every light
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_ONE, GL_ONE);*/
-
-	/*for (int i = 0; i < scene->l_entities.size(); ++i) {
-		LightEntity* lent = scene->l_entities[i];
-		if (!lent->visible)
-			continue;
-
-		Matrix44 m;
-		m.setTranslation(lent->model.bottomVector().x, lent->model.bottomVector().y, lent->model.bottomVector().z);
-		//and scale it according to the max_distance of the light
-		m.scale(lent->max_distance, lent->max_distance, lent->max_distance);
-
-		//pass the model to the shader to render the sphere
-		sh->setUniform("u_model", m);
-
-
-		if (lent->light_type == POINT) {
-
-			if (i == 0) glDisable(GL_BLEND);	// first time rendering the mesh
-			else glEnable(GL_BLEND);
-
-			// set uniforms
-			lent->setUniforms(sh);
-
-			if (i != 0) {
-				sh->setUniform("u_ambient_light", (float)0.0);
-				sh->setUniform("u_emissive_factor", (float)0.0);
-			}
-
-			//glFrontFace(GL_CW);
-			quad->render(GL_TRIANGLES);
-		}
-	}*/
 	quad->render(GL_TRIANGLES);
 
 	glDisable(GL_DEPTH_TEST);
