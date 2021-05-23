@@ -287,20 +287,31 @@ void Application::onKeyDown(SDL_KeyboardEvent event)
 {
 	switch (event.keysym.sym)
 	{
-	case SDLK_ESCAPE: must_exit = true; break; //ESC key, kill the app
-	case SDLK_F1: render_debug = !render_debug; break;
-	case SDLK_f: camera->center.set(0, 0, 0); camera->updateViewMatrix(); break;
-	case SDLK_F5: Shader::ReloadAll(); break;
-	case SDLK_F6:
-		scene->clear();
-		scene->load(scene->filename.c_str());
-		camera->lookAt(scene->main_camera.eye, scene->main_camera.center, Vector3(0, 1, 0));
-		camera->fov = scene->main_camera.fov;
-		break;
-	case SDLK_t: renderer->render_mode = GTR::eRenderMode::SHOW_TEXTURE; break;
-	case SDLK_y: renderer->render_mode = GTR::eRenderMode::SHOW_LIGHT_SP; break;
-	case SDLK_u: renderer->render_mode = GTR::eRenderMode::SHOW_LIGHT_MP; break;
-	case SDLK_i: renderer->render_mode = GTR::eRenderMode::SHOW_NORMALS; break;
+		case SDLK_ESCAPE: must_exit = true; break; //ESC key, kill the app
+		case SDLK_F1: render_debug = !render_debug; break;
+		case SDLK_f: camera->center.set(0, 0, 0); camera->updateViewMatrix(); break;
+		case SDLK_F5: Shader::ReloadAll(); break;
+		case SDLK_t: renderer->render_mode = GTR::eRenderMode::SHOW_AO; break;
+		case SDLK_u: renderer->render_mode = GTR::eRenderMode::SHOW_UVS; break;
+		case SDLK_i: renderer->render_mode = GTR::eRenderMode::SHOW_NORMAL; break;
+		case SDLK_o: renderer->render_mode = GTR::eRenderMode::SHOW_TEXTURE; break;
+		case SDLK_p: renderer->render_mode = GTR::eRenderMode::DEFAULT; break;
+		case SDLK_l: renderer->render_mode = GTR::eRenderMode::SHOW_MULTI; break;
+		case SDLK_k: renderer->render_mode = GTR::eRenderMode::SHOW_DEPTH; break;
+		case SDLK_j: renderer->pipeline_mode = GTR::ePipelineMode::DEFERRED; break;
+		case SDLK_h: renderer->pipeline_mode = GTR::ePipelineMode::FORWARD; break;
+		case SDLK_m:
+			if (renderer->pipeline_mode == GTR::ePipelineMode::DEFERRED) {
+				if (renderer->render_mode != GTR::eRenderMode::SHOW_GBUFFERS) renderer->render_mode = GTR::eRenderMode::SHOW_GBUFFERS;
+				else renderer->render_mode = GTR::eRenderMode::SHOW_DEFERRED;
+			}
+			break;
+		case SDLK_F6:
+			scene->clear();
+			scene->load(scene->filename.c_str());
+			camera->lookAt(scene->main_camera.eye, scene->main_camera.center, Vector3(0, 1, 0));
+			camera->fov = scene->main_camera.fov;
+			break;
 	}
 }
 

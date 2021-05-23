@@ -12,13 +12,21 @@ namespace GTR {
 	class Material;
 
 	enum eRenderMode {
+		DEFAULT,
 		SHOW_TEXTURE,
-		SHOW_LIGHT_SP,
-		SHOW_LIGHT_MP,
-		SHOW_NORMALS,
-		SHOW_DEPTH
+		SHOW_NORMAL,
+		SHOW_AO,
+		SHOW_UVS,
+		SHOW_MULTI,
+		SHOW_DEPTH,
+		SHOW_GBUFFERS,
+		SHOW_DEFERRED
 	};
 
+	enum ePipelineMode {
+		DEFERRED,
+		FORWARD
+	};
 
 	class RenderCall
 	{
@@ -74,12 +82,14 @@ namespace GTR {
 
 	public:
 
-
 		eRenderMode render_mode;
-		FBO fbo;
-		Texture* color_buffer;
+		ePipelineMode pipeline_mode;
+		bool render_alpha;
+
+		FBO gbuffers_fbo;
+		FBO illumination_fbo;
+
 		std::vector<RenderCall> renderCalls;
-		std::vector<LightEntity*> light_entities;
 
 		Renderer();
 
@@ -88,19 +98,26 @@ namespace GTR {
 
 		void addRenderCall(RenderCall renderCall);
 		RenderCall createRenderCall(Matrix44 model, Mesh* mesh, Material* material, float distance_to_camera);
-
-		void addLightEntity(LightEntity* entity);
-
+		
 		void collectRCsandLights(GTR::Scene* scene, Camera* camera);
 
 		void renderToFBO(GTR::Scene* scene, Camera* camera);
+
+		void renderToFBOForward(GTR::Scene* scene, Camera* camera);
+		void renderToFBODeferred(GTR::Scene* scene, Camera* camera);
+		void renderMeshDeferred(const Matrix44 model, Mesh* mesh, GTR::Material* material, Camera* camera);
+
+		//renders several elements of the scene
+		//void renderScene(GTR::Scene* scene, Camera* camera);
+		void joinGbuffers(GTR::Scene* scene, Camera* camera);
+		void illuminationDeferred(GTR::Scene* scene, Camera* camera);
 
 		//renders several elements of the scene
 		void renderScene(GTR::Scene* scene, Camera* camera);
 		void renderShadow(GTR::Scene* scene, Camera* camera);
 		void generateShadowmaps(GTR::Scene* scene);
-
-
+		void getShadows(const Matrix44 model, Mesh* mesh, GTR::Material* material, Camera* camera);
+	
 		//to render a whole prefab (with all its nodes)
 		void renderPrefab(const Matrix44& model, GTR::Prefab* prefab, Camera* camera);
 
@@ -109,9 +126,7 @@ namespace GTR {
 
 		//to render one mesh given its material and transformation matrix
 		void renderMeshWithMaterial(const Matrix44 model, Mesh* mesh, GTR::Material* material, Camera* camera);
-
-		void getShadows(const Matrix44 model, Mesh* mesh, GTR::Material* material, Camera* camera);
-	};
+		};
 
 	Texture* CubemapFromHDRE(const char* filename);
 

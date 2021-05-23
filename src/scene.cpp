@@ -285,6 +285,8 @@ void GTR::LightEntity::configure(cJSON* json)
 		float exponent = cJSON_GetObjectItem(json, "exponent")->valuedouble;
 		this->exponent = exponent;
 	}
+	
+	this->scene->addEntityLight(this);
 }
 
 void GTR::LightEntity::setUniforms(Shader* shader)
@@ -304,11 +306,10 @@ void GTR::LightEntity::setUniforms(Shader* shader)
 	//pass the light data to the shader
 	shader->setUniform("u_light_color", this->color);
 	shader->setUniform("u_light_type", l_type);
-	if (l_type != 0)
-		shader->setUniform("u_light_position", this->model.getTranslation());
+	shader->setUniform("u_light_position", this->model.getTranslation());
 
-	shader->setUniform("u_light_maxdist", this->max_distance);
-	shader->setUniform("u_light_intensity", this->intensity);
+	shader->setUniform("u_maxdist", this->max_distance);
+	shader->setUniform("u_light_factor", this->intensity);
 
 	Vector3 light_direction = Vector3(0, 0, 0);
 	if (this->light_type == SPOT)
@@ -316,10 +317,14 @@ void GTR::LightEntity::setUniforms(Shader* shader)
 	else if (this->light_type == DIRECTIONAL)
 		light_direction = this->model.rotateVector(Vector3(0, 0, -1));
 
-	shader->setUniform("u_light_vector", light_direction);
-	shader->setUniform("u_light_direction", light_direction);
+	shader->setUniform("u_direction", light_direction);
 	float angle = this->cone_angle * DEG2RAD;
-	shader->setUniform("u_cosine_cutoff", cos(angle));
-	shader->setUniform("u_exponent", this->exponent);
+	shader->setUniform("u_spotCosineCutoff", cos(angle));
+	shader->setUniform("u_spotExponent", this->exponent);
 }
 
+
+void GTR::Scene::addEntityLight(LightEntity* entity)
+{
+	l_entities.push_back(entity); entity->scene = this;
+}

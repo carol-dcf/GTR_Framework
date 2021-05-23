@@ -8,7 +8,9 @@ light_singlepass basic.vs light_singlepass.fs
 light_multipass basic.vs light_multipass.fs
 normal basic.vs normal.fs
 shadow basic.vs shadow.fs
-
+uvs basic.vs uvs.fs
+occlusion basic.vs occlusion.fs
+fx quad.vs fx.fs
 deferred quad.vs deferred.fs
 deferred_ws basic.vs deferred.fs
 add_ambient quad.vs add_ambient.fs
@@ -117,6 +119,55 @@ void main() {
 	v_uv = a_coord; //store the texture coordinates
 
 	gl_Position = u_viewprojection * vec4( v_world_position, 1.0 ); //calcule the position of the vertex using the matrices
+}
+
+\uvs.fs
+
+#version 330 core
+
+in vec2 v_uv;
+
+out vec4 FragColor;
+
+void main()
+{
+	FragColor = vec4(v_uv, 1.0, 1.0);
+}
+
+\occlusion.fs
+
+#version 330 core
+in vec2 v_uv;
+uniform sampler2D u_metallic_roughness_texture;
+
+out vec4 FragColor;
+
+void main()
+{
+	vec2 uv = v_uv;
+	float occ = texture(u_metallic_roughness_texture, v_uv).x;
+
+	FragColor = vec4(occ, occ, occ, 1.0);
+}
+
+\fx.fs
+
+#version 330 core
+
+in vec2 v_uv;
+
+uniform sampler2D u_texture;
+uniform float u_time;
+
+out vec4 FragColor;
+
+void main()
+{
+	vec2 uv = v_uv;
+	vec4 color = texture( u_texture, v_uv );
+	color = vec4(1.0) - color;
+
+	FragColor = color;
 }
 
 \quad.vs
@@ -323,7 +374,7 @@ uniform vec4 u_color;
 
 // textures
 uniform sampler2D u_texture; // base color
-uniform sampler2D u_mr_texture; // metallic roughness
+uniform sampler2D u_metallic_roughness_texture; // metallic roughness
 uniform sampler2D u_emissive_texture; // emissive
 uniform sampler2D u_occ_texture; // occlusion
 uniform sampler2D u_normal_texture; // normal
@@ -350,14 +401,14 @@ const int MAX_LIGHTS = 5;
 uniform vec3 u_light_pos[MAX_LIGHTS];
 uniform vec3 u_light_color[MAX_LIGHTS];
 uniform int u_num_lights;
-uniform float u_light_maxdist[MAX_LIGHTS];
-uniform float u_light_intensity[MAX_LIGHTS];
+uniform float u_maxdist[MAX_LIGHTS];
+uniform float u_light_factor[MAX_LIGHTS];
 
 uniform int u_light_type[MAX_LIGHTS];
-uniform vec3 u_light_vector[MAX_LIGHTS]; // directional light
-uniform float u_cosine_cutoff[MAX_LIGHTS];
-uniform float u_exponent[MAX_LIGHTS];
-uniform bool u_have_normalmap;
+uniform vec3 u_direction[MAX_LIGHTS]; // directional light
+uniform float u_spotCosineCutoff[MAX_LIGHTS];
+uniform float u_spotExponent[MAX_LIGHTS];
+uniform bool u_read_normal;
 
 out vec4 FragColor;
 
@@ -372,7 +423,7 @@ void main()
 	if(color.a < u_alpha_cutoff)
 		discard;
 	
-	float occlusion = texture( u_mr_texture, v_uv ).x;
+	float occlusion = texture( u_metallic_roughness_texture, v_uv ).x;
 	vec4 emissive = texture ( u_emissive_texture, v_uv);
 
 	vec3 light = u_ambient_light * occlusion;
@@ -380,7 +431,7 @@ void main()
 	//very important to normalize as they come
 	//interpolated so normalization is lost
 	vec3 N;
-	if (!u_have_normalmap )
+	if (!u_read_normal )
 		N = normalize( v_normal );
 	else{ 
 		vec3 normal_pixel = texture2D( u_normal_texture, v_uv ).xyz;
@@ -391,7 +442,7 @@ void main()
 		if(i < u_num_lights) {
 			vec3 L;
 			if( u_light_type[i] == 0 ) //directional  light
-				L = u_light_vector[i];
+				L = u_direction[i];
 			else //point and spot light
 				L = normalize(u_light_pos[i] - v_world_position); //vector from the point to the light
 
@@ -400,8 +451,8 @@ void main()
 			NdotL = clamp( NdotL, 0.0, 1.0 ); //light cannot be negative (but the dot product can)
 
 			float light_distance = length(u_light_pos[i] - v_world_position ); //compute distance
-			float att_factor = u_light_maxdist[i] - light_distance; //compute a linear attenuation factor
-			att_factor /= u_light_maxdist[i]; //normalize factor
+			float att_factor = u_maxdist[i] - light_distance; //compute a linear attenuation factor
+			att_factor /= u_maxdist[i]; //normalize factor
 			att_factor = max( att_factor, 0.0 ); //ignore negative values
 			if (u_light_type[i] == 0)
 				att_factor = 1.0;
@@ -409,15 +460,15 @@ void main()
 			float spotFactor = 1.0;
 			if ( u_light_type[i] == 2)
 			{ // the light is a spotlight
-			    vec3 D = normalize(u_light_vector[i]);  // unit vector!
+			    vec3 D = normalize(u_direction[i]);  // unit vector!
 		    	float spotCosine = dot(D,-L);
-		    	if (spotCosine > u_cosine_cutoff[i])
-		        	spotFactor = pow(spotCosine,u_exponent[i]);
+		    	if (spotCosine > u_spotCosineCutoff[i])
+		        	spotFactor = pow(spotCosine,u_spotExponent[i]);
 		    	else
 		    		spotFactor = 0.0;
 			}	// Light intensity will be multiplied by spotFactor
 
-			light += (( NdotL * u_light_color[i]) * att_factor) * u_light_intensity[i] * spotFactor; //apply to amount of light
+			light += (( NdotL * u_light_color[i]) * att_factor) * u_light_factor[i] * spotFactor; //apply to amount of light
 		}
 	}
 
@@ -440,14 +491,13 @@ uniform vec3 u_ambient_light; // ambient
 uniform vec3 u_emissive_factor; // emissive
 uniform vec3 u_light_color; // color
 uniform int u_light_type; // type (DIRECTIONAL, POINT, SPOT)
-uniform vec3 u_light_vector; // directional light
-uniform vec3 u_light_direction; // spot light
+uniform vec3 u_direction; // spot light
 uniform vec3 u_light_position; // position
-uniform float u_light_maxdist; // max distance (attenuation)
-uniform float u_light_intensity; // intensity
-uniform float u_cosine_cutoff; // cos(angle) spotlight
-uniform float u_exponent; // exp spotlight
-uniform bool u_have_normalmap; // normal texture?
+uniform float u_maxdist; // max distance (attenuation)
+uniform float u_light_factor; // intensity
+uniform float u_spotCosineCutoff; // cos(angle) spotlight
+uniform float u_spotExponent; // exp spotlight
+uniform bool u_read_normal; // normal texture?
 
 out vec4 FragColor;
 
@@ -463,14 +513,14 @@ void main()
 	if(color.a < u_alpha_cutoff)
 		discard;
 	
-	float occlusion = texture( u_mr_texture, v_uv ).x;
+	float occlusion = texture( u_metallic_roughness_texture, v_uv ).x;
 	vec4 emissive = texture ( u_emissive_texture, v_uv);
 
 	vec3 light = u_ambient_light * occlusion;
 
 	//very important to normalize as they come interpolated so normalization is lost
 	vec3 N;
-	if (!u_have_normalmap )
+	if (!u_read_normal )
 		N = normalize( v_normal );
 	else{ 
 		vec3 normal_pixel = texture2D( u_normal_texture, v_uv ).xyz;
@@ -482,7 +532,7 @@ void main()
 
 	//depending on the light type...
 	if( u_light_type == 0 ) //directional  light
-		L = u_light_vector; // same for all pixels
+		L = u_direction; // same for all pixels
 	else //point and spot light
 		L = normalize(u_light_position - v_world_position); //vector from the point to the light
 
@@ -495,8 +545,8 @@ void main()
 	r_v = clamp(r_v,0,1); */
 
 	float light_distance = length(u_light_position - v_world_position ); //compute distance
-	float att_factor = u_light_maxdist - light_distance; //compute a linear attenuation factor
-	att_factor /= u_light_maxdist; //normalize factor
+	float att_factor = u_maxdist - light_distance; //compute a linear attenuation factor
+	att_factor /= u_maxdist; //normalize factor
 	att_factor = max( att_factor, 0.0 ); //ignore negative values
 	if (u_light_type == 0)
 		att_factor = 1.0;
@@ -505,10 +555,10 @@ void main()
 	float spotFactor = 1.0;
 	if ( u_light_type == 2) 
 	{ // the light is a spotlight
-	    vec3 D = normalize(u_light_direction);  // unit vector!
+	    vec3 D = normalize(u_direction);  // unit vector!
     	float spotCosine = dot(D,-L);
-    	if (spotCosine > u_cosine_cutoff)
-        	spotFactor = pow(spotCosine,u_exponent);
+    	if (spotCosine > u_spotCosineCutoff)
+        	spotFactor = pow(spotCosine,u_spotExponent);
     	else
     		spotFactor = 0.0;
 	}	// Light intensity will be multiplied by spotFactor
@@ -554,7 +604,7 @@ void main()
 
 
 	//apply to amount of light
-	light += (( NdotL * u_light_color) * att_factor) * u_light_intensity * spotFactor * shadow_factor;
+	light += (( NdotL * u_light_color) * att_factor) * u_light_factor * spotFactor * shadow_factor;
 
 	color.xyz *= light;
 	color.xyz += emissive.xyz * u_emissive_factor;
@@ -572,7 +622,7 @@ in vec3 v_normal;
 in vec2 v_uv;
 
 uniform sampler2D u_normal_texture;
-uniform bool u_have_normalmap;
+uniform bool u_read_normal;
 
 out vec4 FragColor;
 
@@ -581,7 +631,7 @@ out vec4 FragColor;
 void main() {
 	
 	vec3 N;
-	if (!u_have_normalmap )
+	if (!u_read_normal )
 		N = normalize( v_normal );
 	else{ 
 		vec3 normal_pixel = texture2D( u_normal_texture, v_uv ).xyz;

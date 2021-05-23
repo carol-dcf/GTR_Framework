@@ -20,21 +20,10 @@ GTR::RenderCall::RenderCall() {}
 
 GTR::Renderer::Renderer()
 {
-	render_mode = GTR::eRenderMode::SHOW_TEXTURE;
-	//collect entities
-	for (int i = 0; i < GTR::Scene::instance->entities.size(); ++i)
-	{
-		BaseEntity* ent = GTR::Scene::instance->entities[i];
-		if (!ent->visible)
-			continue;
-
-		//is a light
-		if (ent->entity_type == LIGHT)
-		{
-			LightEntity* lent = (GTR::LightEntity*)ent;
-			light_entities.push_back(lent);
-		}
-	}
+	render_mode = GTR::eRenderMode::DEFAULT;
+	pipeline_mode = GTR::ePipelineMode::FORWARD;
+	gbuffers_fbo = FBO();
+	gbuffers_fbo.create(Application::instance->window_width, Application::instance->window_height, 3, GL_RGBA, GL_FLOAT, true);
 }
 
 void GTR::Renderer::addRenderCall(RenderCall renderCall)
@@ -52,15 +41,10 @@ RenderCall GTR::Renderer::createRenderCall(Matrix44 model, Mesh* mesh, Material*
 	return renderCall;
 }
 
-void GTR::Renderer::addLightEntity(LightEntity* entity)
-{
-	light_entities.push_back(entity); entity->scene = GTR::Scene::instance;
-}
-
 void GTR::Renderer::collectRCsandLights(GTR::Scene* scene, Camera* camera)
 {
 	renderCalls.clear();
-	light_entities.clear();
+	scene->l_entities.clear();
 
 	//collect entities
 	for (int i = 0; i < scene->entities.size(); ++i)
@@ -82,7 +66,7 @@ void GTR::Renderer::collectRCsandLights(GTR::Scene* scene, Camera* camera)
 		{
 			float aspect = Application::instance->window_width / (float)Application::instance->window_height;
 			LightEntity* lent = (GTR::LightEntity*)ent;
-			light_entities.push_back(lent);
+			scene->l_entities.push_back(lent);
 			if (lent->light_type == SPOT) // SPOT LIGHT CAMERA
 			{
 				Vector3 eye = lent->model.getTranslation(); // camera position
@@ -96,15 +80,22 @@ void GTR::Renderer::collectRCsandLights(GTR::Scene* scene, Camera* camera)
 				Vector3 eye = lent->model.getTranslation(); // camera position
 				Vector3 center = lent->model.rotateVector(Vector3(0, 0, 1));
 
-				//Vector3 eye = Vector3(0,400,0); // camera position
-				//Vector3 center = lent->model.rotateVector(Vector3(0, 0, 1));
-				//Vector3 camera_eye = Application::instance->scene_camera->eye;
-				//Vector3 center = camera_eye - (eye * 1000);
-
 				light_camera->lookAt(eye, eye + center, Vector3(0, 1, 0));
 				float a_size = lent->area_size;
 				light_camera->setOrthographic(-a_size, a_size, -a_size / aspect, a_size / aspect, 10, 10000);
 			}
+
+			/*if (lent->light_type == eLightType::SPOT) {
+				cam->lookAt(lent->model.getTranslation(), lent->model.getTranslation() + lent->target, Vector3(0.f, 1.f, 0.f));
+				cam->setPerspective(lent->cone_angle, Application::instance->window_width / (float)Application::instance->window_height, 1.0f, 10000.f);
+			}
+			else if (lent->light_type == eLightType::DIRECTIONAL) {
+				cam->lookAt(lent->model.getTranslation(), Vector3(0.0f, 0.0f, 0.0f), Vector3(-1.0f, -1.0f, 0.f));
+				cam->setOrthographic(-600, 600, -600, 600, -600, 600);
+			}
+			else if (lent->light_type == eLightType::POINT) {
+				continue;
+			}*/
 		}
 	}
 
@@ -115,7 +106,7 @@ void GTR::Renderer::collectRCsandLights(GTR::Scene* scene, Camera* camera)
 }
 
 
-void Renderer::renderToFBO(GTR::Scene* scene, Camera* camera)
+void Renderer::renderToFBOForward(GTR::Scene* scene, Camera* camera)
 {
 	float w = Application::instance->window_width;
 	float h = Application::instance->window_height;
@@ -128,14 +119,14 @@ void Renderer::renderToFBO(GTR::Scene* scene, Camera* camera)
 	glViewport(0, 0, w, h);
 	renderScene(scene, camera);
 
-	if (render_mode == SHOW_LIGHT_MP) {
+	/*if (render_mode == SHOW_MULTI) {
 		// show depth buffers
 		glDisable(GL_DEPTH_TEST);
 		Shader* zshader = Shader::Get("depth");
 		zshader->enable();
 		int j = 0;
-		for (int i = 0; i < light_entities.size(); ++i) {
-			LightEntity* light = light_entities[i];
+		for (int i = 0; i < scene->l_entities.size(); ++i) {
+			LightEntity* light = scene->l_entities[i];
 			if (light != NULL) {
 				if (light->light_type != POINT) {
 					glViewport(j * w / 5, 0, w / 5, h / 5);
@@ -146,8 +137,237 @@ void Renderer::renderToFBO(GTR::Scene* scene, Camera* camera)
 			}
 		}
 		zshader->disable();
+	}*/
+}
+
+
+void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
+	if (pipeline_mode == DEFERRED) {
+		gbuffers_fbo.bind();
+
+		gbuffers_fbo.enableSingleBuffer(0);
+
+		//clear GB0 with the color (and depth)
+		glClearColor(0.1, 0.1, 0.1, 1.0);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		//and now enable the second GB to clear it to black
+		gbuffers_fbo.enableSingleBuffer(1);
+		glClearColor(0.0, 0.0, 0.0, 1.0);
+		glClear(GL_COLOR_BUFFER_BIT);
+
+		//enable all buffers back
+		gbuffers_fbo.enableAllBuffers();
+
+		renderScene(scene, camera);
+
+		gbuffers_fbo.unbind();
+
+		Shader* shader = Shader::Get("depth");
+		shader->enable();
+		shader->setUniform("u_camera_nearfar", Vector2(camera->near_plane, camera->far_plane));
+
+		float w = Application::instance->window_width;
+		float h = Application::instance->window_height;
+
+		if (render_mode == SHOW_GBUFFERS) {
+			glViewport(0.0f, 0.0f, w / 2, h / 2);
+			gbuffers_fbo.color_textures[0]->toViewport();
+			glViewport(w / 2, 0.0f, w / 2, h / 2);
+			gbuffers_fbo.color_textures[1]->toViewport();
+			glViewport(0.0f, h / 2, w / 2, h / 2);
+			gbuffers_fbo.color_textures[2]->toViewport();
+			glViewport(w / 2, h / 2, w / 2, h / 2);
+			gbuffers_fbo.depth_texture->toViewport(shader);
+		}
+		else { // show deferred all together
+			//create and FBO
+			glClearColor(scene->background_color.x, scene->background_color.y, scene->background_color.z, 1.0);
+
+			illumination_fbo = FBO();
+			//create 3 textures of 4 components
+			illumination_fbo.create(w, h, 1, GL_RGB, GL_UNSIGNED_BYTE, false);
+
+			//start rendering to the illumination fbo
+			illumination_fbo.bind();
+
+			//joinGbuffers(scene, camera);
+			illuminationDeferred(scene, camera);
+
+			illumination_fbo.unbind();
+			//be sure blending is not active
+			glDisable(GL_BLEND);
+
+			Shader* ambient_shader = Shader::Get("add_ambient");
+			ambient_shader->enable();
+			ambient_shader->setUniform("u_ambient_light", scene->ambient_light);
+			ambient_shader->setUniform("u_color_texture", gbuffers_fbo.color_textures[0], 0);
+
+			glViewport(0.0f, 0.0f, w, h);
+			gbuffers_fbo.color_textures[0]->toViewport(ambient_shader);
+			glEnable(GL_BLEND);
+			illumination_fbo.color_textures[0]->toViewport();
+			ambient_shader->disable();
+
+		}
+		shader->disable();
+	}
+	glDisable(GL_BLEND);
+
+}
+
+void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
+
+	float w = Application::instance->window_width;
+	float h = Application::instance->window_height;
+	Matrix44 inv_vp = camera->viewprojection_matrix;
+	inv_vp.inverse();
+	//we need a fullscreen quad
+	//Mesh* quad = Mesh::getQuad();
+	Mesh* sphere = Mesh::Get("data/meshes/sphere.obj", true);
+
+	Shader* sh = Shader::Get("deferred_ws");
+
+	sh->enable();
+	//pass the gbuffers to the shader
+	sh->setUniform("u_color_texture", gbuffers_fbo.color_textures[0], 0);
+	sh->setUniform("u_normal_texture", gbuffers_fbo.color_textures[1], 1);
+	sh->setUniform("u_extra_texture", gbuffers_fbo.color_textures[2], 2);
+	sh->setUniform("u_depth_texture", gbuffers_fbo.depth_texture, 3);
+
+	//pass the inverse projection of the camera to reconstruct world pos.
+	sh->setUniform("u_inverse_viewprojection", inv_vp);
+	//pass the inverse window resolution, this may be useful
+	sh->setUniform("u_iRes", Vector2(1.0 / (float)w, 1.0 / (float)h));
+
+	sh->setUniform("u_ambient_light", scene->ambient_light);
+	sh->setUniform("u_viewprojection", camera->viewprojection_matrix);
+
+	sh->setUniform("u_ambient_light", Vector3(0, 0, 0));
+
+	bool first = true;
+	glEnable(GL_CULL_FACE);
+	glFrontFace(GL_CW);
+
+	for (int i = 0; i < scene->l_entities.size(); ++i) {
+		LightEntity* lent = scene->l_entities[i];
+
+		if (!lent->visible) continue;
+
+		lent->setUniforms(sh);
+
+		if (i == 0) {
+			glDisable(GL_DEPTH_TEST);
+			glDisable(GL_BLEND);
+		}
+		else {
+			glEnable(GL_BLEND);
+			glBlendFunc(GL_ONE, GL_ONE);
+		}
+
+		if (lent->light_type == POINT || lent->light_type == SPOT)
+		{
+			Matrix44 m;
+			m.setTranslation(lent->model.getTranslation().x, lent->model.getTranslation().y, lent->model.getTranslation().z);
+			//and scale it according to the max_distance of the light
+			m.scale(lent->max_distance, lent->max_distance, lent->max_distance);
+
+			//pass the model to the shader to render the sphere
+			sh->setUniform("u_model", m);
+
+			sphere->render(GL_TRIANGLES);
+		}
+		/*if (lent->light_type == DIRECTIONAL) {
+			Mesh* quad = Mesh::getQuad();
+
+			Shader* s = Shader::Get("deferred");
+			s->enable();
+			lent->setUniforms(s);
+
+			s->setUniform("u_color_texture", gbuffers_fbo.color_textures[0], 0);
+			s->setUniform("u_normal_texture", gbuffers_fbo.color_textures[1], 1);
+			s->setUniform("u_extra_texture", gbuffers_fbo.color_textures[2], 2);
+			s->setUniform("u_depth_texture", gbuffers_fbo.depth_texture, 3);
+
+			//pass the inverse projection of the camera to reconstruct world pos.
+			s->setUniform("u_inverse_viewprojection", inv_vp);
+			//pass the inverse window resolution, this may be useful
+			s->setUniform("u_iRes", Vector2(1.0 / (float)w, 1.0 / (float)h));
+
+			s->setUniform("u_ambient_light", scene->ambient_light);
+			s->setUniform("u_viewprojection", camera->viewprojection_matrix);
+
+			s->setUniform("u_ambient_light", Vector3(0, 0, 0));
+
+			quad->render(GL_TRIANGLES);
+			s->disable();
+		}*/
+	}
+
+	glFrontFace(GL_CCW);
+
+}
+
+void Renderer::renderToFBO(GTR::Scene* scene, Camera* camera) {
+
+	switch (pipeline_mode) {
+	case FORWARD: renderToFBOForward(scene, camera); break;
+	case DEFERRED: renderToFBODeferred(scene, camera); break;
 	}
 }
+
+void Renderer::renderMeshDeferred(const Matrix44 model, Mesh* mesh, GTR::Material* material, Camera* camera) {
+
+	Shader* shader = Shader::Get("multi");
+	Texture* texture = NULL;
+	Texture* normal_texture = NULL;
+	Texture* mat_properties_texture = NULL;
+
+	texture = material->color_texture.texture;
+	if (texture == NULL) texture = Texture::getWhiteTexture(); //a 1x1 white texture
+
+	bool read_normal = true;
+	normal_texture = material->normal_texture.texture;
+	if (!normal_texture) read_normal = false;
+
+	mat_properties_texture = material->metallic_roughness_texture.texture;
+	if (mat_properties_texture == NULL) mat_properties_texture = Texture::getWhiteTexture(); //a 1x1 white texture
+
+	if (material->alpha_mode == GTR::eAlphaMode::BLEND)
+	{
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	}
+	else
+		glDisable(GL_BLEND);
+
+	//select if render both sides of the triangles
+	if (material->two_sided)
+		glDisable(GL_CULL_FACE);
+	else
+		glEnable(GL_CULL_FACE);
+	assert(glGetError() == GL_NO_ERROR);
+
+	shader->enable();
+
+	shader->setUniform("u_viewprojection", camera->viewprojection_matrix);
+	shader->setUniform("u_camera_position", camera->eye);
+	shader->setUniform("u_model", model);
+	float t = getTime();
+	shader->setUniform("u_time", t);
+
+	shader->setUniform("u_color", material->color);
+	shader->setUniform("u_emissive_factor", material->emissive_factor);
+	if (texture) shader->setUniform("u_texture", texture, 0);
+	if (normal_texture) shader->setUniform("u_normal_texture", normal_texture, 1);
+	if (mat_properties_texture) shader->setUniform("u_mat_properties_texture", mat_properties_texture, 2);
+	shader->setUniform("u_read_normal", read_normal);
+
+	mesh->render(GL_TRIANGLES);
+	shader->disable();
+	glDisable(GL_BLEND);
+}
+
 
 void Renderer::renderScene(GTR::Scene* scene, Camera* camera)
 {
@@ -163,7 +383,10 @@ void Renderer::renderScene(GTR::Scene* scene, Camera* camera)
 	for (int i = 0; i < renderCalls.size(); ++i)
 	{
 		RenderCall render_call = renderCalls[i];
-		renderMeshWithMaterial(render_call.model, render_call.mesh, render_call.material, camera);
+		if (pipeline_mode == FORWARD)
+			renderMeshWithMaterial(render_call.model, render_call.mesh, render_call.material, camera);
+		else
+			renderMeshDeferred(render_call.model, render_call.mesh, render_call.material, camera);
 	}
 }
 
@@ -187,8 +410,8 @@ void GTR::Renderer::renderShadow(GTR::Scene* scene, Camera* camera)
 
 void GTR::Renderer::generateShadowmaps(GTR::Scene* scene)
 {
-	for (int i = 0; i < light_entities.size(); ++i) {
-		LightEntity* light = light_entities[i];
+	for (int i = 0; i < scene->l_entities.size(); ++i) {
+		LightEntity* light = scene->l_entities[i];
 
 		if (light->light_type != POINT) {
 			if (light->fbo.fbo_id == 0)
@@ -304,13 +527,14 @@ void Renderer::renderMeshWithMaterial(const Matrix44 model, Mesh* mesh, GTR::Mat
 	assert(glGetError() == GL_NO_ERROR);
 
 	//chose a shader
-	shader = Shader::Get("texture");
-	switch (render_mode)
-	{
-	case SHOW_TEXTURE: shader = Shader::Get("texture"); break;
-	case SHOW_LIGHT_SP: shader = Shader::Get("light_singlepass"); break;
-	case SHOW_LIGHT_MP: shader = Shader::Get("light_multipass"); break;
-	case SHOW_NORMALS: shader = Shader::Get("normal"); break;
+	switch (render_mode) {
+		case SHOW_NORMAL: shader = Shader::Get("normal"); break;
+		case SHOW_UVS: shader = Shader::Get("uvs"); break;
+		case SHOW_TEXTURE: shader = Shader::Get("texture"); break;
+		case SHOW_AO: shader = Shader::Get("occlusion"); break;
+		case DEFAULT: shader = Shader::Get("light_singlepass"); break;
+		case SHOW_MULTI: shader = Shader::Get("light_multipass"); break;
+		case SHOW_DEPTH: shader = Shader::Get("texture"); break;
 	}
 
 	assert(glGetError() == GL_NO_ERROR);
@@ -326,14 +550,14 @@ void Renderer::renderMeshWithMaterial(const Matrix44 model, Mesh* mesh, GTR::Mat
 	shader->setUniform("u_model", model);
 	float t = getTime();
 	shader->setUniform("u_time", t);
-	shader->setUniform("u_color", material->color);
 
+	shader->setUniform("u_color", material->color);
 	if (texture) shader->setUniform("u_texture", texture, 0);
-	if (mr_texture) shader->setUniform("u_mr_texture", mr_texture, 1);
+	if (mr_texture) shader->setUniform("u_metallic_roughness_texture", mr_texture, 1);
 	if (emissive_texture) shader->setUniform("u_emissive_texture", emissive_texture, 2);
 	if (occ_texture) shader->setUniform("u_occ_texture", occ_texture, 3);
 	if (normal_texture) shader->setUniform("u_normal_texture", normal_texture, 4);
-	shader->setUniform("u_have_normalmap", have_normalmap);
+	shader->setUniform("u_read_normal", have_normalmap);
 
 	//this is used to say which is the alpha threshold to what we should not paint a pixel on the screen (to cut polygons according to texture alpha)
 	shader->setUniform("u_alpha_cutoff", material->alpha_mode == GTR::eAlphaMode::MASK ? material->alpha_cutoff : 0);
@@ -344,10 +568,10 @@ void Renderer::renderMeshWithMaterial(const Matrix44 model, Mesh* mesh, GTR::Mat
 
 
 	// SINGLE PASS
-	if (render_mode == SHOW_LIGHT_SP)
+	if (render_mode == DEFAULT)
 	{
 		// lights
-		int num_lights = light_entities.size();
+		int num_lights = scene->l_entities.size();
 		Vector3 light_position[5];
 		Vector3 light_color[5];
 		Vector3 light_vector[5];
@@ -359,7 +583,7 @@ void Renderer::renderMeshWithMaterial(const Matrix44 model, Mesh* mesh, GTR::Mat
 
 		for (int j = 0; j < num_lights; ++j)
 		{
-			LightEntity* lent = light_entities[j];
+			LightEntity* lent = scene->l_entities[j];
 			light_color[j] = lent->color;
 			light_position[j] = lent->model.getTranslation(); //convert a position from local to world
 			light_type[j] = static_cast<int>(lent->light_type);
@@ -378,19 +602,19 @@ void Renderer::renderMeshWithMaterial(const Matrix44 model, Mesh* mesh, GTR::Mat
 		shader->setUniform3Array("u_light_pos", (float*)&light_position, 5);
 		shader->setUniform3Array("u_light_color", (float*)&light_color, 5);
 		shader->setUniform1Array("u_light_type", (int*)&light_type, 5);
-		shader->setUniform3Array("u_light_vector", (float*)&light_vector, 5);
+		shader->setUniform3Array("u_direction", (float*)&light_vector, 5);
 		shader->setUniform1("u_num_lights", num_lights);
-		shader->setUniform1Array("u_light_maxdist", (float*)&max_distances, 5);
-		shader->setUniform1Array("u_light_intensity", (float*)&light_intensities, 5);
-		shader->setUniform1Array("u_cosine_cutoff", (float*)&light_cos_cutoff, 5);
-		shader->setUniform1Array("u_exponent", (float*)&light_exponents, 5);
+		shader->setUniform1Array("u_maxdist", (float*)&max_distances, 5);
+		shader->setUniform1Array("u_light_factor", (float*)&light_intensities, 5);
+		shader->setUniform1Array("u_spotCosineCutoff", (float*)&light_cos_cutoff, 5);
+		shader->setUniform1Array("u_spotExponent", (float*)&light_exponents, 5);
 
 		//do the draw call that renders the mesh into the screen
 		mesh->render(GL_TRIANGLES);
 	}
 
 	// MULTI PASS
-	else if (render_mode == SHOW_LIGHT_MP)
+	else if (render_mode == SHOW_MULTI)
 	{
 		//allow to render pixels that have the same depth as the one in the depth buffer
 		glDepthFunc(GL_LEQUAL);
@@ -398,9 +622,9 @@ void Renderer::renderMeshWithMaterial(const Matrix44 model, Mesh* mesh, GTR::Mat
 		//set blending mode to additive, this will collide with materials with blend...
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
-		for (int i = 0; i < light_entities.size(); ++i)
+		for (int i = 0; i < scene->l_entities.size(); ++i)
 		{
-			LightEntity* light = light_entities[i];
+			LightEntity* light = scene->l_entities[i];
 			//first pass doesn't use blending
 			if (i == 0) {
 				if (material->alpha_mode == GTR::eAlphaMode::BLEND) {
@@ -436,6 +660,7 @@ void Renderer::renderMeshWithMaterial(const Matrix44 model, Mesh* mesh, GTR::Mat
 
 	//set the render state as it was before to avoid problems with future renders
 	glDisable(GL_BLEND);
+	glDepthFunc(GL_LESS);
 }
 
 void GTR::Renderer::getShadows(const Matrix44 model, Mesh* mesh, GTR::Material* material, Camera* camera)
@@ -493,6 +718,81 @@ void GTR::Renderer::getShadows(const Matrix44 model, Mesh* mesh, GTR::Material* 
 	glDisable(GL_BLEND);
 }
 
+
+void GTR::Renderer::joinGbuffers(GTR::Scene* scene, Camera* camera)
+{
+	float w = Application::instance->window_width;
+	float h = Application::instance->window_height;
+	Matrix44 inv_vp = camera->viewprojection_matrix;
+	inv_vp.inverse();
+	//we need a fullscreen quad
+	Mesh* quad = Mesh::getQuad();
+	//Mesh* sphere = Mesh::Get("data/meshes/sphere.obj", true);
+
+	//we need a shader specially for this task, lets call it "deferred"
+	Shader* sh = Shader::Get("deferred");
+	//Shader* sh = Shader::Get("deferred_ws");
+	sh->enable();
+
+	//pass the gbuffers to the shader
+	sh->setUniform("u_color_texture", gbuffers_fbo.color_textures[0], 0);
+	sh->setUniform("u_normal_texture", gbuffers_fbo.color_textures[1], 1);
+	sh->setUniform("u_extra_texture", gbuffers_fbo.color_textures[2], 2);
+	sh->setUniform("u_depth_texture", gbuffers_fbo.depth_texture, 3);
+
+	//pass the inverse projection of the camera to reconstruct world pos.
+	sh->setUniform("u_inverse_viewprojection", inv_vp);
+	//pass the inverse window resolution, this may be useful
+	sh->setUniform("u_iRes", Vector2(1.0 / (float)w, 1.0 / (float)h));
+
+	//pass all the information about the light and ambient…
+	sh->setUniform("u_ambient_light", scene->ambient_light);
+
+	//sh->setUniform("u_viewprojection", camera->viewprojection_matrix);
+
+	/*glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_LESS);
+	//we must accumulate the light contribution of every light
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_ONE, GL_ONE);*/
+
+	/*for (int i = 0; i < scene->l_entities.size(); ++i) {
+		LightEntity* lent = scene->l_entities[i];
+		if (!lent->visible)
+			continue;
+
+		Matrix44 m;
+		m.setTranslation(lent->model.bottomVector().x, lent->model.bottomVector().y, lent->model.bottomVector().z);
+		//and scale it according to the max_distance of the light
+		m.scale(lent->max_distance, lent->max_distance, lent->max_distance);
+
+		//pass the model to the shader to render the sphere
+		sh->setUniform("u_model", m);
+
+
+		if (lent->light_type == POINT) {
+
+			if (i == 0) glDisable(GL_BLEND);	// first time rendering the mesh
+			else glEnable(GL_BLEND);
+
+			// set uniforms
+			lent->setUniforms(sh);
+
+			if (i != 0) {
+				sh->setUniform("u_ambient_light", (float)0.0);
+				sh->setUniform("u_emissive_factor", (float)0.0);
+			}
+
+			//glFrontFace(GL_CW);
+			quad->render(GL_TRIANGLES);
+		}
+	}*/
+	quad->render(GL_TRIANGLES);
+
+	glDisable(GL_DEPTH_TEST);
+	sh->disable();
+	//glFrontFace(GL_CCW);
+}
 
 Texture* GTR::CubemapFromHDRE(const char* filename)
 {

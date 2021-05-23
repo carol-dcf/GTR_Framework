@@ -23,9 +23,10 @@ namespace GTR {
 	};
 
 	enum eLightType {
-		DIRECTIONAL = 0,
+		NOLIGHT = 0,
 		POINT = 1,
-		SPOT = 2
+		SPOT = 2,
+		DIRECTIONAL = 3
 	};
 
 	class Scene;
@@ -69,11 +70,12 @@ namespace GTR {
 		float cone_angle;
 		float area_size;
 		float exponent;
+		float bias;
+		Vector3 target;
+
 		Camera* light_camera;
 		FBO fbo;
 		Texture* shadow_buffer;
-		float bias;
-		Vector3 target;
 
 		LightEntity();
 		virtual void renderInMenu();
@@ -96,9 +98,11 @@ namespace GTR {
 
 		std::string filename;
 		std::vector<BaseEntity*> entities;
+		std::vector<LightEntity*> l_entities;
 
 		void clear();
 		void addEntity(BaseEntity* entity);
+		void addEntityLight(LightEntity* entity);
 
 		bool load(const char* filename);
 		BaseEntity* createEntity(std::string type);
