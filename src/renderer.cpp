@@ -20,13 +20,21 @@ GTR::RenderCall::RenderCall() {}
 
 GTR::Renderer::Renderer()
 {
+	float w = Application::instance->window_width;
+	float h = Application::instance->window_height;
+
 	render_mode = GTR::eRenderMode::DEFAULT;
 	pipeline_mode = GTR::ePipelineMode::FORWARD;
 	gbuffers_fbo = FBO();
-	gbuffers_fbo.create(Application::instance->window_width, Application::instance->window_height, 3, GL_RGBA, GL_FLOAT, true);
+	gbuffers_fbo.create(w, h, 3, GL_RGBA, GL_FLOAT, true);
 
 	ssao_fbo = FBO();
-	ssao_fbo.create(Application::instance->window_width, Application::instance->window_height);
+	ssao_fbo.create(w, h);
+
+	illumination_fbo = FBO();
+	illumination_fbo.create(w, h, 5, GL_RGB, GL_UNSIGNED_BYTE, false);
+
+	random_points = generateSpherePoints(64, 50, true);
 }
 
 void GTR::Renderer::addRenderCall(RenderCall renderCall)
@@ -123,11 +131,6 @@ void Renderer::renderToFBOForward(GTR::Scene* scene, Camera* camera)
 }
 
 void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
-	
-	if (render_mode == SHOW_SSAO) {
-		generateSSAO(scene, camera);
-		ssao_fbo.color_textures[0]->toViewport();
-	}
 
 	generateShadowmaps(scene);
 
@@ -158,6 +161,7 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 	float w = Application::instance->window_width;
 	float h = Application::instance->window_height;
 
+
 	if (render_mode == SHOW_GBUFFERS) {
 		glViewport(0.0f, 0.0f, w / 2, h / 2);
 		gbuffers_fbo.color_textures[0]->toViewport();
@@ -168,13 +172,14 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 		glViewport(w / 2, h / 2, w / 2, h / 2);
 		gbuffers_fbo.depth_texture->toViewport(shader);
 	}
+	else if (render_mode == SHOW_SSAO) {
+		generateSSAO(scene, camera);
+		glViewport(0.0f, 0.0f, w, h);
+		ssao_fbo.color_textures[0]->toViewport();
+	}
 	else { // show deferred all together
 		//create and FBO
 		glClearColor(scene->background_color.x, scene->background_color.y, scene->background_color.z, 1.0);
-
-		illumination_fbo = FBO();
-		//create 3 textures of 4 components
-		illumination_fbo.create(w, h, 1, GL_RGB, GL_UNSIGNED_BYTE, false);
 
 		//start rendering to the illumination fbo
 		illumination_fbo.bind();
@@ -322,15 +327,15 @@ void Renderer::generateSSAO(GTR::Scene* scene, Camera* camera)
 	//we will need the viewprojection to obtain the uv in the depthtexture of any random position of our world
 	shader->setUniform("u_viewprojection", camera->viewprojection_matrix);
 
-	std::vector<Vector3> random_points = generateSpherePoints(64, 10, true);
-
 	//send random points so we can fetch around
 	shader->setUniform3Array("u_points", (float*)&random_points[0],
 		random_points.size());
 
+	glDisable(GL_DEPTH_TEST);
 	//render fullscreen quad
 	quad->render(GL_TRIANGLES);
 
+	glEnable(GL_DEPTH_TEST);
 	//stop rendering to the texture
 	ssao_fbo.unbind();
 }

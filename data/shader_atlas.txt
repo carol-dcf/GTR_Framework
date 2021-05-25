@@ -871,5 +871,4 @@ void main()
 	
 	FragColor = vec4(vec3(ao), 1.0);
 	
-	
 }

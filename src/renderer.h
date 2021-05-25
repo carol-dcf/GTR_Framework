@@ -91,6 +91,8 @@ namespace GTR {
 		FBO illumination_fbo;
 		FBO ssao_fbo;
 
+		std::vector<Vector3> random_points;
+
 		std::vector<RenderCall> renderCalls;
 
 		Renderer();
