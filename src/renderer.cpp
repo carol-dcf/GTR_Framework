@@ -32,9 +32,9 @@ GTR::Renderer::Renderer()
 	ssao_fbo.create(w, h);
 
 	illumination_fbo = FBO();
-	illumination_fbo.create(w, h, 5, GL_RGB, GL_UNSIGNED_BYTE, false);
+	illumination_fbo.create(w, h, 3, GL_RGB, GL_UNSIGNED_BYTE, false);
 
-	random_points = generateSpherePoints(64, 50, true);
+	random_points = generateSpherePoints(64, 5, true);
 }
 
 void GTR::Renderer::addRenderCall(RenderCall renderCall)
@@ -178,11 +178,13 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 		ssao_fbo.color_textures[0]->toViewport();
 	}
 	else { // show deferred all together
-		//create and FBO
-		glClearColor(scene->background_color.x, scene->background_color.y, scene->background_color.z, 1.0);
 
 		//start rendering to the illumination fbo
 		illumination_fbo.bind();
+
+		//create and FBO
+		glClearColor(scene->background_color.x, scene->background_color.y, scene->background_color.z, 1.0);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		//joinGbuffers(scene, camera);
 		illuminationDeferred(scene, camera);
@@ -238,7 +240,6 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 	sh->setUniform("u_viewprojection", camera->viewprojection_matrix);
 	sh->setUniform("u_camera_eye", camera->eye);
 
-	bool first = true;
 	glEnable(GL_CULL_FACE);
 	glFrontFace(GL_CW);
 
@@ -271,6 +272,8 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 			sphere->render(GL_TRIANGLES);
 		}
 		if (lent->light_type == DIRECTIONAL) {
+			glDisable(GL_DEPTH_TEST);
+
 			Mesh* quad = Mesh::getQuad();
 
 			Shader* s = Shader::Get("deferred");
@@ -289,7 +292,6 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 
 			s->setUniform("u_ambient_light", scene->ambient_light);
 			s->setUniform("u_viewprojection", camera->viewprojection_matrix);
-
 
 			quad->render(GL_TRIANGLES);
 			s->disable();
