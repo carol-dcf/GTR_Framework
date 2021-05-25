@@ -201,7 +201,7 @@ void GTR::LightEntity::renderInMenu()
 
 #ifndef SKIP_IMGUI
 	bool changed = false;
-	changed |= ImGui::Combo("Type", (int*)&this->light_type, "DIRECTIONAL\0POINT\0SPOT", 3);
+	changed |= ImGui::Combo("Type", (int*)&this->light_type, "NOLIGHT\0POINT\0SPOT\0DIRECTIONAL", 4);
 	if (changed && light_type == SPOT) {
 		this->cone_angle = 45;
 		this->exponent = 4.0;
@@ -258,8 +258,10 @@ void GTR::LightEntity::configure(cJSON* json)
 			this->light_type = GTR::eLightType::SPOT;
 		else if (l_type_str == "POINT")
 			this->light_type = GTR::eLightType::POINT;
-		else
+		else if (l_type_str == "DIRECTIONAL")
 			this->light_type = GTR::eLightType::DIRECTIONAL;
+		else
+			this->light_type = GTR::eLightType::NOLIGHT;
 	}
 
 	if (cJSON_GetObjectItem(json, "max_dist"))

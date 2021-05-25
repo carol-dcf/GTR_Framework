@@ -495,7 +495,7 @@ void main()
 	for( int i = 0; i < MAX_LIGHTS; ++i ) {
 		if(i < u_num_lights) {
 			vec3 L;
-			if( u_light_type[i] == 0 ) //directional  light
+			if( u_light_type[i] == 3 ) //directional  light
 				L = u_direction[i];
 			else //point and spot light
 				L = normalize(u_light_pos[i] - v_world_position); //vector from the point to the light
@@ -508,7 +508,7 @@ void main()
 			float att_factor = u_maxdist[i] - light_distance; //compute a linear attenuation factor
 			att_factor /= u_maxdist[i]; //normalize factor
 			att_factor = max( att_factor, 0.0 ); //ignore negative values
-			if (u_light_type[i] == 0)
+			if (u_light_type[i] == 3)
 				att_factor = 1.0;
 
 			float spotFactor = 1.0;
@@ -586,7 +586,7 @@ void main()
 	vec3 L;
 
 	//depending on the light type...
-	if( u_light_type == 0 ) //directional  light
+	if( u_light_type == 3 ) //directional  light
 		L = u_direction; // same for all pixels
 	else //point and spot light
 		L = normalize(u_light_position - v_world_position); //vector from the point to the light
@@ -598,7 +598,7 @@ void main()
 	float att_factor = u_maxdist - light_distance; //compute a linear attenuation factor
 	att_factor /= u_maxdist; //normalize factor
 	att_factor = max( att_factor, 0.0 ); //ignore negative values
-	if (u_light_type == 0)
+	if (u_light_type == 3)
 		att_factor = 1.0;
 
 
@@ -819,7 +819,8 @@ uniform vec2 u_iRes;
 uniform sampler2D u_depth_texture;
 uniform mat4 u_inverse_viewprojection;
 uniform mat4 u_viewprojection;
-uniform vec3 u_points[64]; 
+#define MAX_SAMPLES 64
+uniform vec3 u_points[MAX_SAMPLES]; 
 
 out vec4 FragColor;
 
@@ -847,7 +848,7 @@ void main()
 	
 	
 	//lets use 64 samples
-	const int samples = 64;
+	const int samples = MAX_SAMPLES;
 	int num = samples; //num samples that passed the are outside
 
 	//for every sample around the point

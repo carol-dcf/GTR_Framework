@@ -34,7 +34,7 @@ GTR::Renderer::Renderer()
 	illumination_fbo = FBO();
 	illumination_fbo.create(w, h, 3, GL_RGB, GL_UNSIGNED_BYTE, false);
 
-	random_points = generateSpherePoints(64, 5, true);
+	random_points = generateSpherePoints(64, 1.0, false);
 }
 
 void GTR::Renderer::addRenderCall(RenderCall renderCall)
