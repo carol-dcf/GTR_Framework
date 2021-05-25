@@ -20,7 +20,8 @@ namespace GTR {
 		SHOW_MULTI,
 		SHOW_DEPTH,
 		SHOW_GBUFFERS,
-		SHOW_DEFERRED
+		SHOW_DEFERRED,
+		SHOW_SSAO
 	};
 
 	enum ePipelineMode {
@@ -88,6 +89,7 @@ namespace GTR {
 
 		FBO gbuffers_fbo;
 		FBO illumination_fbo;
+		FBO ssao_fbo;
 
 		std::vector<RenderCall> renderCalls;
 
@@ -111,6 +113,9 @@ namespace GTR {
 		//void renderScene(GTR::Scene* scene, Camera* camera);
 		void joinGbuffers(GTR::Scene* scene, Camera* camera);
 		void illuminationDeferred(GTR::Scene* scene, Camera* camera);
+
+		void generateSSAO(GTR::Scene* scene, Camera* camera);
+		std::vector<Vector3> generateSpherePoints(int num, float radius, bool hemi);
 
 		//renders several elements of the scene
 		void renderScene(GTR::Scene* scene, Camera* camera);

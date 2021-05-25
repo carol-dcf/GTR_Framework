@@ -306,6 +306,7 @@ void Application::onKeyDown(SDL_KeyboardEvent event)
 				else renderer->render_mode = GTR::eRenderMode::SHOW_DEFERRED;
 			}
 			break;
+		case SDLK_r: renderer->pipeline_mode = GTR::ePipelineMode::DEFERRED; renderer->render_mode = GTR::eRenderMode::SHOW_SSAO; break;
 		case SDLK_F6:
 			scene->clear();
 			scene->load(scene->filename.c_str());

@@ -24,6 +24,9 @@ GTR::Renderer::Renderer()
 	pipeline_mode = GTR::ePipelineMode::FORWARD;
 	gbuffers_fbo = FBO();
 	gbuffers_fbo.create(Application::instance->window_width, Application::instance->window_height, 3, GL_RGBA, GL_FLOAT, true);
+
+	ssao_fbo = FBO();
+	ssao_fbo.create(Application::instance->window_width, Application::instance->window_height);
 }
 
 void GTR::Renderer::addRenderCall(RenderCall renderCall)
@@ -121,6 +124,11 @@ void Renderer::renderToFBOForward(GTR::Scene* scene, Camera* camera)
 
 void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 	
+	if (render_mode == SHOW_SSAO) {
+		generateSSAO(scene, camera);
+		ssao_fbo.color_textures[0]->toViewport();
+	}
+
 	generateShadowmaps(scene);
 
 	gbuffers_fbo.bind();
@@ -285,6 +293,71 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 
 	glFrontFace(GL_CCW);
 
+}
+
+void Renderer::generateSSAO(GTR::Scene* scene, Camera* camera)
+{
+	gbuffers_fbo.depth_texture->bind();
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	//start rendering inside the ssao texture
+	ssao_fbo.bind();
+
+	Mesh* quad = Mesh::getQuad();
+
+	Matrix44 invvp = camera->viewprojection_matrix;
+	invvp.inverse();
+
+	//get the shader for SSAO (remember to create it using the atlas)
+	Shader* shader = Shader::Get("ssao");
+	shader->enable();
+
+	//send info to reconstruct the world position
+	shader->setUniform("u_inverse_viewprojection", invvp);
+	shader->setTexture("u_depth_texture", gbuffers_fbo.depth_texture, 0);
+	//we need the pixel size so we can center the samples 
+	shader->setUniform("u_iRes", Vector2(1.0 / (float)gbuffers_fbo.depth_texture->width,
+		1.0 / (float)gbuffers_fbo.depth_texture->height));
+	//we will need the viewprojection to obtain the uv in the depthtexture of any random position of our world
+	shader->setUniform("u_viewprojection", camera->viewprojection_matrix);
+
+	std::vector<Vector3> random_points = generateSpherePoints(64, 10, true);
+
+	//send random points so we can fetch around
+	shader->setUniform3Array("u_points", (float*)&random_points[0],
+		random_points.size());
+
+	//render fullscreen quad
+	quad->render(GL_TRIANGLES);
+
+	//stop rendering to the texture
+	ssao_fbo.unbind();
+}
+
+std::vector<Vector3> Renderer::generateSpherePoints(int num, float radius, bool hemi)
+{
+	std::vector<Vector3> points;
+	points.resize(num);
+	for (int i = 0; i < num; i += 3)
+	{
+		Vector3& p = points[i];
+		float u = random();
+		float v = random();
+		float theta = u * 2.0 * PI;
+		float phi = acos(2.0 * v - 1.0);
+		float r = cbrt(random() * 0.9 + 0.1) * radius;
+		float sinTheta = sin(theta);
+		float cosTheta = cos(theta);
+		float sinPhi = sin(phi);
+		float cosPhi = cos(phi);
+		p.x = r * sinPhi * cosTheta;
+		p.y = r * sinPhi * sinTheta;
+		p.z = r * cosPhi;
+		if (hemi && p.z < 0)
+			p.z *= -1.0;
+	}
+	return points;
 }
 
 void Renderer::renderToFBO(GTR::Scene* scene, Camera* camera) {
