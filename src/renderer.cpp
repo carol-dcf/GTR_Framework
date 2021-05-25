@@ -117,100 +117,82 @@ void Renderer::renderToFBOForward(GTR::Scene* scene, Camera* camera)
 	glEnable(GL_DEPTH_TEST);
 	glViewport(0, 0, w, h);
 	renderScene(scene, camera);
-
-	/*if (render_mode == SHOW_MULTI) {
-		// show depth buffers
-		glDisable(GL_DEPTH_TEST);
-		Shader* zshader = Shader::Get("depth");
-		zshader->enable();
-		int j = 0;
-		for (int i = 0; i < scene->l_entities.size(); ++i) {
-			LightEntity* light = scene->l_entities[i];
-			if (light != NULL) {
-				if (light->light_type != POINT) {
-					glViewport(j * w / 5, 0, w / 5, h / 5);
-					zshader->setUniform("u_camera_nearfar", Vector2(light->light_camera->near_plane, light->light_camera->far_plane));
-					light->shadow_buffer->toViewport(zshader);
-					++j;
-				}
-			}
-		}
-		zshader->disable();
-	}*/
 }
 
 void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
-	if (pipeline_mode == DEFERRED) {
-		gbuffers_fbo.bind();
+	
+	generateShadowmaps(scene);
 
-		gbuffers_fbo.enableSingleBuffer(0);
+	gbuffers_fbo.bind();
 
-		//clear GB0 with the color (and depth)
-		glClearColor(0.1, 0.1, 0.1, 1.0);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	gbuffers_fbo.enableSingleBuffer(0);
 
-		//and now enable the second GB to clear it to black
-		gbuffers_fbo.enableSingleBuffer(1);
-		glClearColor(0.0, 0.0, 0.0, 1.0);
-		glClear(GL_COLOR_BUFFER_BIT);
+	//clear GB0 with the color (and depth)
+	glClearColor(0.1, 0.1, 0.1, 1.0);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		//enable all buffers back
-		gbuffers_fbo.enableAllBuffers();
+	//and now enable the second GB to clear it to black
+	gbuffers_fbo.enableSingleBuffer(1);
+	glClearColor(0.0, 0.0, 0.0, 1.0);
+	glClear(GL_COLOR_BUFFER_BIT);
 
-		renderScene(scene, camera);
+	//enable all buffers back
+	gbuffers_fbo.enableAllBuffers();
 
-		gbuffers_fbo.unbind();
+	renderScene(scene, camera);
 
-		Shader* shader = Shader::Get("depth");
-		shader->enable();
-		shader->setUniform("u_camera_nearfar", Vector2(camera->near_plane, camera->far_plane));
+	gbuffers_fbo.unbind();
 
-		float w = Application::instance->window_width;
-		float h = Application::instance->window_height;
+	Shader* shader = Shader::Get("depth");
+	shader->enable();
+	shader->setUniform("u_camera_nearfar", Vector2(camera->near_plane, camera->far_plane));
 
-		if (render_mode == SHOW_GBUFFERS) {
-			glViewport(0.0f, 0.0f, w / 2, h / 2);
-			gbuffers_fbo.color_textures[0]->toViewport();
-			glViewport(w / 2, 0.0f, w / 2, h / 2);
-			gbuffers_fbo.color_textures[1]->toViewport();
-			glViewport(0.0f, h / 2, w / 2, h / 2);
-			gbuffers_fbo.color_textures[2]->toViewport();
-			glViewport(w / 2, h / 2, w / 2, h / 2);
-			gbuffers_fbo.depth_texture->toViewport(shader);
-		}
-		else { // show deferred all together
-			//create and FBO
-			glClearColor(scene->background_color.x, scene->background_color.y, scene->background_color.z, 1.0);
+	float w = Application::instance->window_width;
+	float h = Application::instance->window_height;
 
-			illumination_fbo = FBO();
-			//create 3 textures of 4 components
-			illumination_fbo.create(w, h, 1, GL_RGB, GL_UNSIGNED_BYTE, false);
-
-			//start rendering to the illumination fbo
-			illumination_fbo.bind();
-
-			//joinGbuffers(scene, camera);
-			illuminationDeferred(scene, camera);
-
-			illumination_fbo.unbind();
-			//be sure blending is not active
-			glDisable(GL_BLEND);
-
-			Shader* ambient_shader = Shader::Get("add_ambient");
-			ambient_shader->enable();
-			ambient_shader->setUniform("u_ambient_light", scene->ambient_light);
-			ambient_shader->setUniform("u_color_texture", gbuffers_fbo.color_textures[0], 0);
-			ambient_shader->setUniform("u_metallic_roughness_texture", gbuffers_fbo.color_textures[2], 1);
-
-			glViewport(0.0f, 0.0f, w, h);
-			gbuffers_fbo.color_textures[0]->toViewport(ambient_shader);
-			glEnable(GL_BLEND);
-			illumination_fbo.color_textures[0]->toViewport();
-			ambient_shader->disable();
-
-		}
-		shader->disable();
+	if (render_mode == SHOW_GBUFFERS) {
+		glViewport(0.0f, 0.0f, w / 2, h / 2);
+		gbuffers_fbo.color_textures[0]->toViewport();
+		glViewport(w / 2, 0.0f, w / 2, h / 2);
+		gbuffers_fbo.color_textures[1]->toViewport();
+		glViewport(0.0f, h / 2, w / 2, h / 2);
+		gbuffers_fbo.color_textures[2]->toViewport();
+		glViewport(w / 2, h / 2, w / 2, h / 2);
+		gbuffers_fbo.depth_texture->toViewport(shader);
 	}
+	else { // show deferred all together
+		//create and FBO
+		glClearColor(scene->background_color.x, scene->background_color.y, scene->background_color.z, 1.0);
+
+		illumination_fbo = FBO();
+		//create 3 textures of 4 components
+		illumination_fbo.create(w, h, 1, GL_RGB, GL_UNSIGNED_BYTE, false);
+
+		//start rendering to the illumination fbo
+		illumination_fbo.bind();
+
+		//joinGbuffers(scene, camera);
+		illuminationDeferred(scene, camera);
+
+		illumination_fbo.unbind();
+		//be sure blending is not active
+		glDisable(GL_BLEND);
+
+		Shader* ambient_shader = Shader::Get("add_ambient");
+		ambient_shader->enable();
+		ambient_shader->setUniform("u_ambient_light", scene->ambient_light);
+		ambient_shader->setUniform("u_color_texture", gbuffers_fbo.color_textures[0], 0);
+		ambient_shader->setUniform("u_metallic_roughness_texture", gbuffers_fbo.color_textures[2], 1);
+
+		glViewport(0.0f, 0.0f, w, h);
+		gbuffers_fbo.color_textures[0]->toViewport(ambient_shader);
+		glEnable(GL_BLEND);
+		illumination_fbo.color_textures[0]->toViewport();
+		ambient_shader->disable();
+
+	}
+	shader->disable();
+	
 	glDisable(GL_BLEND);
 
 }
@@ -490,7 +472,6 @@ void Renderer::renderMeshWithMaterial(const Matrix44 model, Mesh* mesh, GTR::Mat
 	Texture* emissive_texture = NULL;
 	Texture* occ_texture = NULL;
 	Texture* normal_texture = NULL;
-	Texture* shadowmap = NULL;
 	bool have_normalmap = true;
 
 	GTR::Scene* scene = GTR::Scene::instance;
