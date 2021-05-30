@@ -16,6 +16,7 @@ deferred_ws basic.vs deferred.fs
 add_ambient quad.vs add_ambient.fs
 ssao quad.vs ssao.fs
 blur quad.vs blur.fs
+final quad.vs final.fs 
 
 \shadows
 float computeShadowFactor(mat4 viewproj, vec3 worldpos, float bias, sampler2D shadowmap){
@@ -699,11 +700,17 @@ out vec4 FragColor;
 #include "pbr"
 #include "shadows"
 
+vec3 degamma(vec3 c) { return pow(c,vec3(2.2)); }
+
+vec3 gamma(vec3 c){ return pow(c,vec3(1.0/2.2)); }
+
+
 void main()
 {	
 	//extract uvs from pixel screenpos
 	vec2 uv = gl_FragCoord.xy * u_iRes.xy; 
 	vec3 color = texture( u_color_texture, uv ).xyz;
+	color = degamma(color);
 	float occlusion = texture(u_extra_texture, uv).x;
 	float roughness = texture(u_extra_texture, uv).y;
 	float metalness = texture(u_extra_texture, uv).z;
@@ -725,7 +732,7 @@ void main()
 	ao_factor = pow( ao_factor, 3.0 ); //we could play with the curve to have more control
 
 	//now do your illumination using worldpos and the normal...
-	vec3 light = u_ambient_light * ao_factor;
+	vec3 light = u_ambient_light * occlusion;
 	vec3 L = normalize( u_light_position -  worldpos );
 
 	// PBR
@@ -786,6 +793,7 @@ void main()
 	}
 
 	color *= light;
+
 	
 	FragColor = vec4(color, 1.0);
 }
@@ -935,4 +943,33 @@ void main()
     // Output to screen
     color /= Quality * Directions - 15.0;
     FragColor =  color;
+}
+
+\final.fs 
+
+#version 330 core
+
+in vec2 v_uv;
+uniform sampler2D u_texture;
+#define gamma 2.2
+
+vec3 whitePreservingLumaBasedReinhardToneMapping(vec3 color)
+{
+	float white = 2.;
+	float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
+	float toneMappedLuma = luma * (1. + luma / (white*white)) / (1. + luma);
+	color *= toneMappedLuma / luma;
+	color = pow(color, vec3(1. / gamma));
+	return color;
+}
+
+out vec4 FragColor;
+
+//final fragment shader
+void main()
+{
+	vec4 color = texture2D( u_texture, v_uv );
+	vec3 rgb = whitePreservingLumaBasedReinhardToneMapping(color.xyz);
+	FragColor = vec4( rgb, color.a );
+
 }

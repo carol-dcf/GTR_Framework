@@ -16,6 +16,14 @@
 
 using namespace GTR;
 
+Vector3 degamma(Vector3 color) {
+	Vector3 g_color;
+	g_color.x = pow(color.x, 2.2);
+	g_color.y = pow(color.y, 2.2);
+	g_color.z = pow(color.z, 2.2);
+	return g_color;
+}
+
 GTR::RenderCall::RenderCall() {}
 
 GTR::Renderer::Renderer()
@@ -137,9 +145,8 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 	generateShadowmaps(scene);
 
 	gbuffers_fbo.bind();
-
 	gbuffers_fbo.enableSingleBuffer(0);
-
+	
 	//clear GB0 with the color (and depth)
 	glClearColor(0.1, 0.1, 0.1, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -204,18 +211,11 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 		illumination_fbo.unbind();
 		//be sure blending is not active
 		glDisable(GL_BLEND);
-
-		Shader* ambient_shader = Shader::Get("add_ambient");
-		ambient_shader->enable();
-		ambient_shader->setUniform("u_ambient_light", scene->ambient_light);
-		ambient_shader->setUniform("u_color_texture", gbuffers_fbo.color_textures[0], 0);
-		ambient_shader->setUniform("u_metallic_roughness_texture", gbuffers_fbo.color_textures[2], 1);
-
+		Shader* s_final = Shader::Get("final");
 		glViewport(0.0f, 0.0f, w, h);
 		//gbuffers_fbo.color_textures[0]->toViewport(ambient_shader);
 		//glEnable(GL_BLEND);
-		illumination_fbo.color_textures[0]->toViewport();
-		ambient_shader->disable();
+		illumination_fbo.color_textures[0]->toViewport(s_final);
 
 	}
 	shader->disable();
@@ -247,7 +247,7 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 	//pass the inverse window resolution, this may be useful
 	s->setUniform("u_iRes", Vector2(1.0 / (float)w, 1.0 / (float)h));
 
-	s->setUniform("u_ambient_light", scene->ambient_light);
+	s->setUniform("u_ambient_light", degamma(scene->ambient_light));
 	s->setUniform("u_viewprojection", camera->viewprojection_matrix);
 
 	glDisable(GL_DEPTH_TEST);
@@ -288,6 +288,7 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 		if (!lent->visible) continue;
 
 		lent->setUniforms(sh);
+		sh->setUniform("u_light_color", degamma(lent->color));
 		
 		if (lent->light_type == POINT || lent->light_type == SPOT)
 		{
