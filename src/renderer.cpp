@@ -34,7 +34,7 @@ GTR::Renderer::Renderer()
 	illumination_fbo = FBO();
 	illumination_fbo.create(w, h, 3, GL_RGB, GL_UNSIGNED_BYTE, false);
 
-	random_points = generateSpherePoints(64, 1.0, false);
+	random_points = generateSpherePoints(64, 1.0, true);
 }
 
 void GTR::Renderer::addRenderCall(RenderCall renderCall)
@@ -163,6 +163,7 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 
 
 	if (render_mode == SHOW_GBUFFERS) {
+		glDisable(GL_BLEND);
 		glViewport(0.0f, 0.0f, w / 2, h / 2);
 		gbuffers_fbo.color_textures[0]->toViewport();
 		glViewport(w / 2, 0.0f, w / 2, h / 2);
@@ -183,7 +184,7 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 		illumination_fbo.bind();
 
 		//create and FBO
-		glClearColor(scene->background_color.x, scene->background_color.y, scene->background_color.z, 1.0);
+		glClearColor(0, 0, 0, 1.0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		//joinGbuffers(scene, camera);
@@ -200,8 +201,8 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 		ambient_shader->setUniform("u_metallic_roughness_texture", gbuffers_fbo.color_textures[2], 1);
 
 		glViewport(0.0f, 0.0f, w, h);
-		gbuffers_fbo.color_textures[0]->toViewport(ambient_shader);
-		glEnable(GL_BLEND);
+		//gbuffers_fbo.color_textures[0]->toViewport(ambient_shader);
+		//glEnable(GL_BLEND);
 		illumination_fbo.color_textures[0]->toViewport();
 		ambient_shader->disable();
 
@@ -219,7 +220,30 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 	Matrix44 inv_vp = camera->viewprojection_matrix;
 	inv_vp.inverse();
 	//we need a fullscreen quad
-	//Mesh* quad = Mesh::getQuad();
+	Mesh* quad = Mesh::getQuad();
+	// AMBIENT
+	Shader* s = Shader::Get("deferred");
+	s->enable();
+
+	s->setUniform("u_color_texture", gbuffers_fbo.color_textures[0], 0);
+	s->setUniform("u_normal_texture", gbuffers_fbo.color_textures[1], 1);
+	s->setUniform("u_extra_texture", gbuffers_fbo.color_textures[2], 2);
+	s->setUniform("u_depth_texture", gbuffers_fbo.depth_texture, 3);
+
+	//pass the inverse projection of the camera to reconstruct world pos.
+	s->setUniform("u_inverse_viewprojection", inv_vp);
+	//pass the inverse window resolution, this may be useful
+	s->setUniform("u_iRes", Vector2(1.0 / (float)w, 1.0 / (float)h));
+
+	s->setUniform("u_ambient_light", scene->ambient_light);
+	s->setUniform("u_viewprojection", camera->viewprojection_matrix);
+
+	glDisable(GL_DEPTH_TEST);
+	glEnable(GL_BLEND);
+	quad->render(GL_TRIANGLES);
+	s->disable();
+	
+	
 	Mesh* sphere = Mesh::Get("data/meshes/sphere.obj", true);
 
 	Shader* sh = Shader::Get("deferred_ws");
@@ -235,13 +259,16 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 	sh->setUniform("u_inverse_viewprojection", inv_vp);
 	//pass the inverse window resolution, this may be useful
 	sh->setUniform("u_iRes", Vector2(1.0 / (float)w, 1.0 / (float)h));
-
-	sh->setUniform("u_ambient_light", scene->ambient_light);
+	//scene->ambient_light
+	sh->setUniform("u_ambient_light", Vector3(0,0,0));
 	sh->setUniform("u_viewprojection", camera->viewprojection_matrix);
 	sh->setUniform("u_camera_eye", camera->eye);
 
 	glEnable(GL_CULL_FACE);
 	glFrontFace(GL_CW);
+
+	glBlendFunc(GL_ONE, GL_ONE);
+
 
 	for (int i = 0; i < scene->l_entities.size(); ++i) {
 		LightEntity* lent = scene->l_entities[i];
@@ -249,16 +276,7 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 		if (!lent->visible) continue;
 
 		lent->setUniforms(sh);
-
-		if (i == 0) {
-			glDisable(GL_DEPTH_TEST);
-			glDisable(GL_BLEND);
-		}
-		else {
-			glEnable(GL_BLEND);
-			glBlendFunc(GL_ONE, GL_ONE);
-		}
-
+		
 		if (lent->light_type == POINT || lent->light_type == SPOT)
 		{
 			Matrix44 m;
@@ -271,12 +289,10 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 
 			sphere->render(GL_TRIANGLES);
 		}
-		if (lent->light_type == DIRECTIONAL) {
-			glDisable(GL_DEPTH_TEST);
-
-			Mesh* quad = Mesh::getQuad();
-
+		else if (lent->light_type == DIRECTIONAL) {
 			Shader* s = Shader::Get("deferred");
+			glDisable(GL_CULL_FACE);
+			glFrontFace(GL_CCW);
 			s->enable();
 			lent->setUniforms(s);
 
@@ -290,14 +306,15 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 			//pass the inverse window resolution, this may be useful
 			s->setUniform("u_iRes", Vector2(1.0 / (float)w, 1.0 / (float)h));
 
-			s->setUniform("u_ambient_light", scene->ambient_light);
+			s->setUniform("u_ambient_light", Vector3(0, 0, 0));
 			s->setUniform("u_viewprojection", camera->viewprojection_matrix);
-
+			
+			glDisable(GL_DEPTH_TEST);
 			quad->render(GL_TRIANGLES);
 			s->disable();
 		}
 	}
-
+	
 	glFrontFace(GL_CCW);
 
 }
@@ -392,12 +409,8 @@ void Renderer::renderMeshDeferred(const Matrix44 model, Mesh* mesh, GTR::Materia
 	mat_properties_texture = material->metallic_roughness_texture.texture;
 	if (mat_properties_texture == NULL) mat_properties_texture = Texture::getWhiteTexture(); //a 1x1 white texture
 
-	if (material->alpha_mode == GTR::eAlphaMode::BLEND)
-	{
-		return;
-	}
-	else
-		glDisable(GL_BLEND);
+	if (material->alpha_mode == GTR::eAlphaMode::BLEND) return;
+	else glDisable(GL_BLEND);
 
 	//select if render both sides of the triangles
 	if (material->two_sided)
@@ -443,8 +456,12 @@ void Renderer::renderScene(GTR::Scene* scene, Camera* camera)
 		RenderCall render_call = renderCalls[i];
 		if (pipeline_mode == FORWARD)
 			renderMeshWithMaterial(render_call.model, render_call.mesh, render_call.material, camera);
-		else
-			renderMeshDeferred(render_call.model, render_call.mesh, render_call.material, camera);
+		else {
+			if (render_call.material->alpha_mode == BLEND)
+				renderMeshWithMaterial(render_call.model, render_call.mesh, render_call.material, camera);
+			else renderMeshDeferred(render_call.model, render_call.mesh, render_call.material, camera);
+		}
+
 	}
 }
 
@@ -588,6 +605,7 @@ void Renderer::renderMeshWithMaterial(const Matrix44 model, Mesh* mesh, GTR::Mat
 		case SHOW_NORMAL: shader = Shader::Get("normal"); break;
 		case SHOW_UVS: shader = Shader::Get("uvs"); break;
 		case SHOW_TEXTURE: shader = Shader::Get("texture"); break;
+		case SHOW_DEFERRED: shader = Shader::Get("texture"); break;
 		case SHOW_AO: shader = Shader::Get("occlusion"); break;
 		case DEFAULT: shader = Shader::Get("light_singlepass"); break;
 		case SHOW_MULTI: shader = Shader::Get("light_multipass"); break;

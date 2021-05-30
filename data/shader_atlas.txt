@@ -682,6 +682,7 @@ uniform float u_spotExponent;
 uniform float u_spotCosineCutoff;
 uniform float u_light_factor;
 uniform float u_maxdist;
+uniform vec3 u_ambient_light;
 
 uniform float u_alpha_cutoff;
 uniform vec3 u_camera_eye;
@@ -718,16 +719,16 @@ void main()
 	vec3 worldpos = proj_worldpos.xyz / proj_worldpos.w;
 	
 	//now do your illumination using worldpos and the normal...
-	vec3 light = vec3(0.0);
+	vec3 light = u_ambient_light * occlusion;
 	vec3 L = normalize( u_light_position -  worldpos );
 
 	// PBR
 	vec3 V = normalize( u_camera_eye - worldpos);
-    vec3 H = normalize( L + V );
-    float NoH = clamp(dot(N,H), 0.0, 1.0);
-    float NoV = clamp(dot(N,V), 0.0, 1.0);
-    float NoL = clamp(dot(N,L), 0.0, 1.0);
-    float LoH = clamp(dot(L,H), 0.0, 1.0);
+	vec3 H = normalize( L + V );
+	float NoH = clamp(dot(N,H), 0.0, 1.0);
+	float NoV = clamp(dot(N,V), 0.0, 1.0);
+	float NoL = clamp(dot(N,L), 0.0, 1.0);
+	float LoH = clamp(dot(L,H), 0.0, 1.0);
 	
 	vec3 f0 = mix( vec3(0.5), color.xyz, metalness ); //we compute the reflection in base to the color and the metalness
 	vec3 diffuseColor = (1.0 - metalness) * color.xyz; //metallic materials do not have diffuse
@@ -773,7 +774,7 @@ void main()
 	
 	// DIRECTIONAL (type 3)
 	if(u_light_type == 3){
-		L = normalize(u_light_position);
+		L = u_direction;
 		vec3 directional = dot(L, N) * u_light_color * u_light_factor * shadow_factor; 
 		light += directional * direct;
 	}
