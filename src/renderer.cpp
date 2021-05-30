@@ -30,6 +30,8 @@ GTR::Renderer::Renderer()
 
 	ssao_fbo = FBO();
 	ssao_fbo.create(w, h);
+	ssao_blur = FBO();
+	ssao_blur.create(w, h);
 
 	illumination_fbo = FBO();
 	illumination_fbo.create(w, h, 3, GL_RGB, GL_UNSIGNED_BYTE, false);
@@ -177,9 +179,18 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 		generateSSAO(scene, camera);
 		glViewport(0.0f, 0.0f, w, h);
 		ssao_fbo.color_textures[0]->toViewport();
+
+		/*
+		ssao_fbo.color_textures[0]->copyTo(ssao_blur.color_textures[0]);
+		Shader* s = Shader::Get("blur");
+		s->enable();
+		s->setTexture("u_ssao_texture", gbuffers_fbo.color_textures[0], 0);
+		s->setUniform("u_iRes", Vector2(1.0 / (float)w, 1.0 / (float)h));
+		ssao_blur.color_textures[0]->toViewport(s);
+		s->disable();*/
 	}
 	else { // show deferred all together
-
+		generateSSAO(scene, camera);
 		//start rendering to the illumination fbo
 		illumination_fbo.bind();
 
@@ -229,6 +240,7 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 	s->setUniform("u_normal_texture", gbuffers_fbo.color_textures[1], 1);
 	s->setUniform("u_extra_texture", gbuffers_fbo.color_textures[2], 2);
 	s->setUniform("u_depth_texture", gbuffers_fbo.depth_texture, 3);
+	s->setUniform("u_ao_texture", ssao_fbo.color_textures[0], 4);
 
 	//pass the inverse projection of the camera to reconstruct world pos.
 	s->setUniform("u_inverse_viewprojection", inv_vp);
@@ -322,7 +334,7 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 void Renderer::generateSSAO(GTR::Scene* scene, Camera* camera)
 {
 	gbuffers_fbo.depth_texture->bind();
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 	//start rendering inside the ssao texture
@@ -340,11 +352,13 @@ void Renderer::generateSSAO(GTR::Scene* scene, Camera* camera)
 	//send info to reconstruct the world position
 	shader->setUniform("u_inverse_viewprojection", invvp);
 	shader->setTexture("u_depth_texture", gbuffers_fbo.depth_texture, 0);
+	shader->setTexture("u_normal_texture", gbuffers_fbo.color_textures[1], 1);
 	//we need the pixel size so we can center the samples 
 	shader->setUniform("u_iRes", Vector2(1.0 / (float)gbuffers_fbo.depth_texture->width,
 		1.0 / (float)gbuffers_fbo.depth_texture->height));
 	//we will need the viewprojection to obtain the uv in the depthtexture of any random position of our world
 	shader->setUniform("u_viewprojection", camera->viewprojection_matrix);
+	
 
 	//send random points so we can fetch around
 	shader->setUniform3Array("u_points", (float*)&random_points[0],

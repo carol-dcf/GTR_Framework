@@ -90,6 +90,7 @@ namespace GTR {
 		FBO gbuffers_fbo;
 		FBO illumination_fbo;
 		FBO ssao_fbo;
+		FBO ssao_blur;
 
 		std::vector<Vector3> random_points;
 
