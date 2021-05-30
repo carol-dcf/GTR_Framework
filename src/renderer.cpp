@@ -37,12 +37,12 @@ GTR::Renderer::Renderer()
 	gbuffers_fbo.create(w, h, 3, GL_RGBA, GL_FLOAT, true);
 
 	ssao_fbo = FBO();
-	ssao_fbo.create(w, h);
+	ssao_fbo.create(w, h, 1, GL_LUMINANCE);
 	ssao_blur = FBO();
 	ssao_blur.create(w, h);
 
 	illumination_fbo = FBO();
-	illumination_fbo.create(w, h, 3, GL_RGB, GL_UNSIGNED_BYTE, false);
+	illumination_fbo.create(w, h, 3, GL_RGB, GL_FLOAT, false);
 
 	random_points = generateSpherePoints(64, 1.0, true);
 }
@@ -185,7 +185,25 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 	else if (render_mode == SHOW_SSAO) {
 		generateSSAO(scene, camera);
 		glViewport(0.0f, 0.0f, w, h);
-		ssao_fbo.color_textures[0]->toViewport();
+		ssao_fbo.color_textures[0]->copyTo(ssao_blur.color_textures[0]);
+
+		ssao_blur.bind();
+
+		glDisable(GL_DEPTH_TEST);
+		glDisable(GL_CULL_FACE);
+		Mesh* quad = Mesh::getQuad();
+		shader = Shader::Get("blur");
+		shader->enable();
+		shader->setTexture("u_ssao_texture", ssao_blur.color_textures[0], 0);
+		shader->setUniform("horizontal", true);
+		quad->render(GL_TRIANGLES);
+		shader->setUniform("horizontal", false);
+		quad->render(GL_TRIANGLES);
+		shader->disable();
+
+		ssao_blur.unbind();
+
+		ssao_blur.color_textures[0]->toViewport();
 
 		/*
 		ssao_fbo.color_textures[0]->copyTo(ssao_blur.color_textures[0]);
@@ -240,7 +258,7 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 	s->setUniform("u_normal_texture", gbuffers_fbo.color_textures[1], 1);
 	s->setUniform("u_extra_texture", gbuffers_fbo.color_textures[2], 2);
 	s->setUniform("u_depth_texture", gbuffers_fbo.depth_texture, 3);
-	s->setUniform("u_ao_texture", ssao_fbo.color_textures[0], 4);
+	s->setUniform("u_ao_texture", ssao_blur.color_textures[0], 4);
 
 	//pass the inverse projection of the camera to reconstruct world pos.
 	s->setUniform("u_inverse_viewprojection", inv_vp);
@@ -751,6 +769,11 @@ void Renderer::renderMeshWithMaterial(const Matrix44 model, Mesh* mesh, GTR::Mat
 	//set the render state as it was before to avoid problems with future renders
 	glDisable(GL_BLEND);
 	glDepthFunc(GL_LESS);
+}
+
+void GTR::Renderer::resize(int width, int height)
+{
+	illumination_fbo.create(width, height, 3, GL_RGB, GL_FLOAT, false);
 }
 
 void GTR::Renderer::getShadows(const Matrix44 model, Mesh* mesh, GTR::Material* material, Camera* camera)

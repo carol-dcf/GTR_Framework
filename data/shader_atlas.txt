@@ -2,21 +2,26 @@
 flat basic.vs flat.fs
 texture basic.vs texture.fs
 depth quad.vs depth.fs
-multi basic.vs multi.fs
 
+// FORWARD
 light_singlepass basic.vs light_singlepass.fs
 light_multipass basic.vs light_multipass.fs
+// DEFERRED
+deferred quad.vs deferred.fs
+deferred_ws basic.vs deferred.fs
+multi basic.vs multi.fs
+add_ambient quad.vs add_ambient.fs
+// SSAO
+ssao quad.vs ssao.fs
+blur quad.vs blur.fs
+// HDR
+final quad.vs final.fs 
+// OTHERS
 normal basic.vs normal.fs
 shadow basic.vs shadow.fs
 uvs basic.vs uvs.fs
 occlusion basic.vs occlusion.fs
 fx quad.vs fx.fs
-deferred quad.vs deferred.fs
-deferred_ws basic.vs deferred.fs
-add_ambient quad.vs add_ambient.fs
-ssao quad.vs ssao.fs
-blur quad.vs blur.fs
-final quad.vs final.fs 
 
 \shadows
 float computeShadowFactor(mat4 viewproj, vec3 worldpos, float bias, sampler2D shadowmap){
@@ -54,9 +59,9 @@ float computeShadowFactor(mat4 viewproj, vec3 worldpos, float bias, sampler2D sh
 		shadow_factor = 1.0;
 	
 	return shadow_factor;
-
 }
 
+// PBR
 \pbr
 
 #define RECIPROCAL_PI 0.3183098861837697
@@ -123,6 +128,26 @@ float Fd_Burley ( const in float NoV, const in float NoL, const in float LoH, co
         float lightScatter = F_Schlick(NoL, f90);
         float viewScatter  = F_Schlick(NoV, f90);
         return lightScatter * viewScatter * RECIPROCAL_PI;
+}
+
+vec3 computeDirectLight(vec3 u_camera_eye, vec3 worldpos, vec3 L, vec3 N, vec3 color, float metalness, float roughness){
+	vec3 V = normalize( u_camera_eye - worldpos);
+	vec3 H = normalize( L + V );
+	float NoH = clamp(dot(N,H), 0.0, 1.0);
+	float NoV = clamp(dot(N,V), 0.0, 1.0);
+	float NoL = clamp(dot(N,L), 0.0, 1.0);
+	float LoH = clamp(dot(L,H), 0.0, 1.0);
+	
+	vec3 f0 = mix( vec3(0.5), color.xyz, metalness ); //we compute the reflection in base to the color and the metalness
+	vec3 diffuseColor = (1.0 - metalness) * color.xyz; //metallic materials do not have diffuse
+	
+	vec3 Fr_d = specularBRDF(roughness, f0, NoH, NoV, NoL, LoH); //compute the specular
+
+	// Here we use the Burley, but you can replace it by the Lambert.
+	float linearRoughness = pow(roughness, 2);
+	vec3 Fd_d = diffuseColor * Fd_Burley(NoV,NoL,LoH,linearRoughness); 	
+	vec3 direct = Fr_d + Fd_d; //add diffuse and specular reflection
+	return direct;
 }
 
 // NORMAL MAP
@@ -559,7 +584,7 @@ uniform bool u_read_normal; // normal texture?
 out vec4 FragColor;
 
 #include "norm_tangent"
-
+#include "pbr"
 
 void main()
 {
@@ -571,6 +596,8 @@ void main()
 		discard;
 	
 	float occlusion = texture( u_metallic_roughness_texture, v_uv ).x;
+	float roughness = texture( u_metallic_roughness_texture, v_uv).y;
+	float metalness = texture( u_metallic_roughness_texture, v_uv).z;
 	vec4 emissive = texture ( u_emissive_texture, v_uv);
 
 	vec3 light = u_ambient_light * occlusion;
@@ -624,9 +651,11 @@ void main()
 		shadow_factor = computeShadowFactor(u_shadow_viewproj, v_world_position, u_shadow_bias, shadowmap);
 	}
 
+	// PBR
+	vec3 direct = computeDirectLight(u_camera_position, v_world_position, L, N, color.xyz, metalness, roughness);
 
 	//apply to amount of light
-	light += (( NdotL * u_light_color) * att_factor) * u_light_factor * spotFactor * shadow_factor;
+	light += (( NdotL * u_light_color) * att_factor) * u_light_factor * spotFactor * shadow_factor * direct;
 
 	color.xyz *= light;
 	color.xyz += emissive.xyz * u_emissive_factor;
@@ -732,29 +761,13 @@ void main()
 	ao_factor = pow( ao_factor, 3.0 ); //we could play with the curve to have more control
 
 	//now do your illumination using worldpos and the normal...
-	vec3 light = u_ambient_light * occlusion;
+	vec3 light = u_ambient_light * ao_factor;
 	vec3 L = normalize( u_light_position -  worldpos );
 
 	// PBR
-	vec3 V = normalize( u_camera_eye - worldpos);
-	vec3 H = normalize( L + V );
-	float NoH = clamp(dot(N,H), 0.0, 1.0);
-	float NoV = clamp(dot(N,V), 0.0, 1.0);
-	float NoL = clamp(dot(N,L), 0.0, 1.0);
-	float LoH = clamp(dot(L,H), 0.0, 1.0);
-	
-	vec3 f0 = mix( vec3(0.5), color.xyz, metalness ); //we compute the reflection in base to the color and the metalness
-	vec3 diffuseColor = (1.0 - metalness) * color.xyz; //metallic materials do not have diffuse
-	
-	vec3 Fr_d = specularBRDF(roughness, f0, NoH, NoV, NoL, LoH); //compute the specular
-
-	// Here we use the Burley, but you can replace it by the Lambert.
-	float linearRoughness = pow(roughness, 2);
-	vec3 Fd_d = diffuseColor * Fd_Burley(NoV,NoL,LoH,linearRoughness); 	
-	vec3 direct = Fr_d + Fd_d; //add diffuse and specular reflection
+	vec3 direct = computeDirectLight(u_camera_eye, worldpos, L, N, color, metalness, roughness);
 	
 	// SHADOW
-	//compute final shadow factor by comparing
 	float shadow_factor = 1.0;
 	if (u_light_type != 1) shadow_factor = computeShadowFactor(u_shadow_viewproj, worldpos, u_shadow_bias, shadowmap);
 	
@@ -768,7 +781,7 @@ void main()
 	// POINT (type 1)
 	if(u_light_type == 1){
 		//apply to amount of light
-		vec3 point = NoL * u_light_color * u_light_factor * att_factor * shadow_factor; 
+		vec3 point = dot(L, N) * u_light_color * u_light_factor * att_factor * shadow_factor; 
 		light += point * direct;
 	}
 	
@@ -903,46 +916,36 @@ void main()
 
 #version 330 core
 
-#define Tau 6.28318530718
-#define Directions 16.0
-#define Quality 1.0
-
 in vec2 v_uv; // texture coordinates
 
-uniform vec2 u_iRes; // viewport resolution (in pixels)
 uniform sampler2D u_ssao_texture;
 
 out vec4 FragColor;
 
+uniform bool horizontal;
+uniform float weight[5] = float[] (0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216);
+
 void main()
-{
-    //float Pi = 6.28318530718; // Pi2
-
-    // GAUSSIAN BLUR SETTINGS {{{
-    //float Directions = 16.0; // BLUR DIRECTIONS (Default 16.0 - More is better but slower)
-    //float Quality = 3.0; // BLUR QUALITY (Default 4.0 - More is better but slower)
-    float size = 4.0; // BLUR SIZE (Radius)
-    // GAUSSIAN BLUR SETTINGS }}}
-
-    vec2 radius = size/u_iRes;
-
-    // Normalized pixel coordinates (from 0 to 1)
-    vec2 uv = gl_FragCoord.xy * u_iRes.xy; 
-    // Pixel colour
-    vec4 color = texture(u_ssao_texture, uv);
-
-    // Blur calculations
-    for( float d=0.0; d<Tau; d+=Tau/Directions)
+{             
+    vec2 tex_offset = 1.0 / textureSize(u_ssao_texture, 0); // gets size of single texel
+    vec3 result = texture(u_ssao_texture, v_uv).rgb * weight[0]; // current fragment's contribution
+    if(horizontal)
     {
-        for(float i=1.0/Quality; i<=1.0; i+=1.0/Quality)
+        for(int i = 1; i < 5; ++i)
         {
-            color += texture( u_ssao_texture , uv+vec2(cos(d),sin(d))*radius*i);
+            result += texture(u_ssao_texture, v_uv + vec2(tex_offset.x * i, 0.0)).rgb * weight[i];
+            result += texture(u_ssao_texture, v_uv - vec2(tex_offset.x * i, 0.0)).rgb * weight[i];
         }
     }
-
-    // Output to screen
-    color /= Quality * Directions - 15.0;
-    FragColor =  color;
+    else
+    {
+        for(int i = 1; i < 5; ++i)
+        {
+            result += texture(u_ssao_texture, v_uv + vec2(0.0, tex_offset.y * i)).rgb * weight[i];
+            result += texture(u_ssao_texture, v_uv - vec2(0.0, tex_offset.y * i)).rgb * weight[i];
+        }
+    }
+    FragColor = vec4(result, 1.0);
 }
 
 \final.fs 
