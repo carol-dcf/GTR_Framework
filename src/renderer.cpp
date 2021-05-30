@@ -40,6 +40,7 @@ GTR::Renderer::Renderer()
 	ssao_fbo.create(w, h, 1, GL_LUMINANCE);
 	ssao_blur = FBO();
 	ssao_blur.create(w, h);
+	blur_ssao = true;
 
 	illumination_fbo = FBO();
 	illumination_fbo.create(w, h, 3, GL_RGB, GL_FLOAT, false);
@@ -185,24 +186,6 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 	else if (render_mode == SHOW_SSAO) {
 		generateSSAO(scene, camera);
 		glViewport(0.0f, 0.0f, w, h);
-		ssao_fbo.color_textures[0]->copyTo(ssao_blur.color_textures[0]);
-
-		ssao_blur.bind();
-
-		glDisable(GL_DEPTH_TEST);
-		glDisable(GL_CULL_FACE);
-		Mesh* quad = Mesh::getQuad();
-		shader = Shader::Get("blur");
-		shader->enable();
-		shader->setTexture("u_ssao_texture", ssao_blur.color_textures[0], 0);
-		shader->setUniform("horizontal", true);
-		quad->render(GL_TRIANGLES);
-		shader->setUniform("horizontal", false);
-		quad->render(GL_TRIANGLES);
-		shader->disable();
-
-		ssao_blur.unbind();
-
 		ssao_blur.color_textures[0]->toViewport();
 
 		/*
@@ -390,6 +373,28 @@ void Renderer::generateSSAO(GTR::Scene* scene, Camera* camera)
 	glEnable(GL_DEPTH_TEST);
 	//stop rendering to the texture
 	ssao_fbo.unbind();
+
+	ssao_fbo.color_textures[0]->copyTo(ssao_blur.color_textures[0]);
+
+	// BLUR
+	if (blur_ssao) {
+		ssao_blur.bind();
+		
+		glDisable(GL_DEPTH_TEST);
+		glDisable(GL_CULL_FACE);
+		Mesh* quad = Mesh::getQuad();
+		shader = Shader::Get("blur");
+		shader->enable();
+		shader->setTexture("u_ssao_texture", ssao_blur.color_textures[0], 0);
+		shader->setUniform("horizontal", true);
+		quad->render(GL_TRIANGLES);
+		shader->setUniform("horizontal", false);
+		quad->render(GL_TRIANGLES);
+		shader->disable();
+
+		ssao_blur.unbind();
+	}
+
 }
 
 std::vector<Vector3> Renderer::generateSpherePoints(int num, float radius, bool hemi)

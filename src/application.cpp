@@ -249,6 +249,25 @@ void Application::renderDebugGUI(void)
 	ImGui::ColorEdit3("BG color", scene->background_color.v);
 	ImGui::ColorEdit3("Ambient Light", scene->ambient_light.v);
 
+	// Pipeline Mode
+	bool changed = false;
+	changed |= ImGui::Combo("Pipeline Mode", (int*)&renderer->pipeline_mode, "DEFERRED\0FORWARD", 2);
+	if (changed && renderer->pipeline_mode == GTR::ePipelineMode::FORWARD) { renderer->render_mode = GTR::eRenderMode::SHOW_MULTI;	}
+	else if (changed && renderer->pipeline_mode == GTR::ePipelineMode::DEFERRED) { renderer->render_mode = GTR::eRenderMode::SHOW_DEFERRED; }
+
+	// Render Mode
+	changed = false;
+	changed |= ImGui::Combo("Render Mode", (int*)&renderer->render_mode, "DEFAULT\0SHOW_TEXTURE\0SHOW_NORMAL\0SHOW_AO\0SHOW_UVS\0SHOW_MULTI\0SHOW_DEPTH\0SHOW_GBUFFERS\0SHOW_DEFERRED\0SHOW_SSAO", 10);
+	if (changed && (renderer->render_mode == GTR::eRenderMode::SHOW_DEFERRED || renderer->render_mode == GTR::eRenderMode::SHOW_GBUFFERS || renderer->render_mode == GTR::eRenderMode::SHOW_SSAO)) {
+		renderer->pipeline_mode = GTR::ePipelineMode::DEFERRED;
+	}
+	else if (changed) renderer->pipeline_mode = GTR::ePipelineMode::FORWARD;
+
+
+
+
+	ImGui::Checkbox("Blur SSAO+", &renderer->blur_ssao);
+
 	//add info to the debug panel about the camera
 	if (ImGui::TreeNode(camera, "Camera")) {
 		camera->renderInMenu();
