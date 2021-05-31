@@ -121,18 +121,24 @@ bool GTR::Scene::load(const char* filename)
 
 	//free memory
 	cJSON_Delete(json);
+	
+	float x, y, z;
 
 	for (int i = 0; i < 6; ++i)
 	{
+		x = rand() % (1000 + 1000 + 1) - 1000;
+		y = rand() % (1000 + 1000 + 1) - 1000;
+		z = rand() % (1000 + 1000 + 1) - 1000;
 		BaseEntity* ent = createEntity("LIGHT");
 		addEntity(ent);
 		ent->model.setIdentity();
-		ent->model.translate(-200.0 * i, 20.0, 100.0 * i);
+		ent->model.translate(x, 20.0, z);
 		LightEntity* light = (GTR::LightEntity*)ent;
 		light->intensity = 10.0;
 		light->light_type = GTR::eLightType::POINT;
 		light->max_distance = 60.0;
 		light->name = "extra" + std::to_string(i);
+
 		light->color = Vector3(1, i * 0.1, 0.3 * i);
 		addEntityLight(light);
 	}
