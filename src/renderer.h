@@ -18,7 +18,6 @@ namespace GTR {
 		SHOW_AO,
 		SHOW_UVS,
 		SHOW_MULTI,
-		SHOW_DEPTH,
 		SHOW_GBUFFERS,
 		SHOW_DEFERRED,
 		SHOW_SSAO
@@ -92,6 +91,7 @@ namespace GTR {
 		FBO ssao_fbo;
 		FBO ssao_blur;
 		bool blur_ssao;
+		bool hdr;
 
 		std::vector<Vector3> random_points;
 

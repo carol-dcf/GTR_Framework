@@ -723,6 +723,8 @@ uniform sampler2D shadowmap; // shadows
 uniform mat4 u_shadow_viewproj; // shadow view projection matrix
 uniform float u_shadow_bias;
 
+uniform bool u_hdr;
+
 //pass here all the uniforms required for illumination...
 out vec4 FragColor;
 
@@ -739,7 +741,7 @@ void main()
 	//extract uvs from pixel screenpos
 	vec2 uv = gl_FragCoord.xy * u_iRes.xy; 
 	vec3 color = texture( u_color_texture, uv ).xyz;
-	color = degamma(color);
+	if (u_hdr) color = degamma(color);
 	float occlusion = texture(u_extra_texture, uv).x;
 	float roughness = texture(u_extra_texture, uv).y;
 	float metalness = texture(u_extra_texture, uv).z;
@@ -781,7 +783,7 @@ void main()
 	// POINT (type 1)
 	if(u_light_type == 1){
 		//apply to amount of light
-		vec3 point = dot(L, N) * u_light_color * u_light_factor * att_factor * shadow_factor; 
+		vec3 point = clamp(dot(L, N), 0.0, 1.0) * u_light_color * u_light_factor * att_factor * shadow_factor; 
 		light += point * direct;
 	}
 	
@@ -794,14 +796,14 @@ void main()
 		if (spotCosine >= u_spotCosineCutoff) { 
 			spotFactor = pow(spotCosine, u_spotExponent);
 		}
-		vec3 spot = dot(L, N) * u_light_color * spotFactor * att_factor * u_light_factor * shadow_factor;
+		vec3 spot = clamp(dot(L, N), 0.0, 1.0) * u_light_color * spotFactor * att_factor * u_light_factor * shadow_factor;
 		light += spot * direct;
 	}
 	
 	// DIRECTIONAL (type 3)
 	if(u_light_type == 3){
 		L = u_direction;
-		vec3 directional = dot(L, N) * u_light_color * u_light_factor * shadow_factor; 
+		vec3 directional = clamp(dot(L, N), 0.0, 1.0) * u_light_color * u_light_factor * shadow_factor; 
 		light += directional * direct;
 	}
 

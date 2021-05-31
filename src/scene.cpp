@@ -1,5 +1,6 @@
 #include "scene.h"
 #include "utils.h"
+#include <stdlib.h>     /* srand, rand */
 
 #include "prefab.h"
 #include "extra/cJSON.h"
@@ -120,6 +121,21 @@ bool GTR::Scene::load(const char* filename)
 
 	//free memory
 	cJSON_Delete(json);
+
+	for (int i = 0; i < 6; ++i)
+	{
+		BaseEntity* ent = createEntity("LIGHT");
+		addEntity(ent);
+		ent->model.setIdentity();
+		ent->model.translate(-200.0 * i, 20.0, 100.0 * i);
+		LightEntity* light = (GTR::LightEntity*)ent;
+		light->intensity = 10.0;
+		light->light_type = GTR::eLightType::POINT;
+		light->max_distance = 60.0;
+		light->name = "extra" + std::to_string(i);
+		light->color = Vector3(1, i * 0.1, 0.3 * i);
+		addEntityLight(light);
+	}
 
 	return true;
 }

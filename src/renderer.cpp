@@ -44,6 +44,7 @@ GTR::Renderer::Renderer()
 
 	illumination_fbo = FBO();
 	illumination_fbo.create(w, h, 3, GL_RGB, GL_FLOAT, false);
+	hdr = true;
 
 	random_points = generateSpherePoints(64, 1.0, true);
 }
@@ -88,6 +89,11 @@ void GTR::Renderer::collectRCsandLights(GTR::Scene* scene, Camera* camera)
 		{
 			float aspect = Application::instance->window_width / (float)Application::instance->window_height;
 			LightEntity* lent = (GTR::LightEntity*)ent;
+			//BoundingBox light_bbox = BoundingBox(lent->model.getTranslation(), Vector3(lent->max_distance, lent->max_distance, lent->max_distance));
+			//BoundingBox world_bounding = transformBoundingBox(lent->model, light_bbox);
+
+			//if bounding box is inside the camera frustum then the object is probably visible
+			//if (camera->testBoxInFrustum(world_bounding.center, world_bounding.halfsize)) {
 			scene->l_entities.push_back(lent);
 			if (lent->light_type == SPOT) // SPOT LIGHT CAMERA
 			{
@@ -106,18 +112,6 @@ void GTR::Renderer::collectRCsandLights(GTR::Scene* scene, Camera* camera)
 				float a_size = lent->area_size;
 				light_camera->setOrthographic(-a_size, a_size, -a_size / aspect, a_size / aspect, 10, 10000);
 			}
-
-			/*if (lent->light_type == eLightType::SPOT) {
-				cam->lookAt(lent->model.getTranslation(), lent->model.getTranslation() + lent->target, Vector3(0.f, 1.f, 0.f));
-				cam->setPerspective(lent->cone_angle, Application::instance->window_width / (float)Application::instance->window_height, 1.0f, 10000.f);
-			}
-			else if (lent->light_type == eLightType::DIRECTIONAL) {
-				cam->lookAt(lent->model.getTranslation(), Vector3(0.0f, 0.0f, 0.0f), Vector3(-1.0f, -1.0f, 0.f));
-				cam->setOrthographic(-600, 600, -600, 600, -600, 600);
-			}
-			else if (lent->light_type == eLightType::POINT) {
-				continue;
-			}*/
 		}
 	}
 
@@ -187,15 +181,6 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 		generateSSAO(scene, camera);
 		glViewport(0.0f, 0.0f, w, h);
 		ssao_blur.color_textures[0]->toViewport();
-
-		/*
-		ssao_fbo.color_textures[0]->copyTo(ssao_blur.color_textures[0]);
-		Shader* s = Shader::Get("blur");
-		s->enable();
-		s->setTexture("u_ssao_texture", gbuffers_fbo.color_textures[0], 0);
-		s->setUniform("u_iRes", Vector2(1.0 / (float)w, 1.0 / (float)h));
-		ssao_blur.color_textures[0]->toViewport(s);
-		s->disable();*/
 	}
 	else { // show deferred all together
 		generateSSAO(scene, camera);
@@ -212,10 +197,10 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 		illumination_fbo.unbind();
 		//be sure blending is not active
 		glDisable(GL_BLEND);
-		Shader* s_final = Shader::Get("final");
+		Shader* s_final = NULL;
+		if (hdr) s_final = Shader::Get("final");
 		glViewport(0.0f, 0.0f, w, h);
-		//gbuffers_fbo.color_textures[0]->toViewport(ambient_shader);
-		//glEnable(GL_BLEND);
+
 		illumination_fbo.color_textures[0]->toViewport(s_final);
 
 	}
@@ -242,20 +227,21 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 	s->setUniform("u_extra_texture", gbuffers_fbo.color_textures[2], 2);
 	s->setUniform("u_depth_texture", gbuffers_fbo.depth_texture, 3);
 	s->setUniform("u_ao_texture", ssao_blur.color_textures[0], 4);
-
+	
 	//pass the inverse projection of the camera to reconstruct world pos.
 	s->setUniform("u_inverse_viewprojection", inv_vp);
 	//pass the inverse window resolution, this may be useful
 	s->setUniform("u_iRes", Vector2(1.0 / (float)w, 1.0 / (float)h));
 
-	s->setUniform("u_ambient_light", degamma(scene->ambient_light));
+	s->setUniform("u_ambient_light", scene->ambient_light);
 	s->setUniform("u_viewprojection", camera->viewprojection_matrix);
+
+	s->setUniform("u_hdr", hdr);
 
 	glDisable(GL_DEPTH_TEST);
 	glEnable(GL_BLEND);
 	quad->render(GL_TRIANGLES);
 	s->disable();
-	
 	
 	Mesh* sphere = Mesh::Get("data/meshes/sphere.obj", true);
 
@@ -267,15 +253,18 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 	sh->setUniform("u_normal_texture", gbuffers_fbo.color_textures[1], 1);
 	sh->setUniform("u_extra_texture", gbuffers_fbo.color_textures[2], 2);
 	sh->setUniform("u_depth_texture", gbuffers_fbo.depth_texture, 3);
+	sh->setUniform("u_ao_texture", ssao_blur.color_textures[0], 4);
 
 	//pass the inverse projection of the camera to reconstruct world pos.
 	sh->setUniform("u_inverse_viewprojection", inv_vp);
 	//pass the inverse window resolution, this may be useful
 	sh->setUniform("u_iRes", Vector2(1.0 / (float)w, 1.0 / (float)h));
+	
 	//scene->ambient_light
-	sh->setUniform("u_ambient_light", Vector3(0,0,0));
+	sh->setUniform("u_ambient_light", Vector3(0, 0, 0));
 	sh->setUniform("u_viewprojection", camera->viewprojection_matrix);
 	sh->setUniform("u_camera_eye", camera->eye);
+	sh->setUniform("u_hdr", hdr);
 
 	glEnable(GL_CULL_FACE);
 	glFrontFace(GL_CW);
@@ -289,8 +278,7 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 		if (!lent->visible) continue;
 
 		lent->setUniforms(sh);
-		sh->setUniform("u_light_color", degamma(lent->color));
-		
+
 		if (lent->light_type == POINT || lent->light_type == SPOT)
 		{
 			Matrix44 m;
@@ -314,15 +302,17 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 			s->setUniform("u_normal_texture", gbuffers_fbo.color_textures[1], 1);
 			s->setUniform("u_extra_texture", gbuffers_fbo.color_textures[2], 2);
 			s->setUniform("u_depth_texture", gbuffers_fbo.depth_texture, 3);
-
+			s->setUniform("u_ao_texture", ssao_blur.color_textures[0], 4);
+			
 			//pass the inverse projection of the camera to reconstruct world pos.
 			s->setUniform("u_inverse_viewprojection", inv_vp);
 			//pass the inverse window resolution, this may be useful
 			s->setUniform("u_iRes", Vector2(1.0 / (float)w, 1.0 / (float)h));
-
+			
 			s->setUniform("u_ambient_light", Vector3(0, 0, 0));
 			s->setUniform("u_viewprojection", camera->viewprojection_matrix);
-			
+			s->setUniform("u_hdr", hdr);
+
 			glDisable(GL_DEPTH_TEST);
 			quad->render(GL_TRIANGLES);
 			s->disable();
@@ -330,7 +320,6 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 	}
 	
 	glFrontFace(GL_CCW);
-
 }
 
 void Renderer::generateSSAO(GTR::Scene* scene, Camera* camera)
@@ -498,6 +487,7 @@ void Renderer::renderScene(GTR::Scene* scene, Camera* camera)
 			if (render_call.material->alpha_mode == BLEND)
 				renderMeshWithMaterial(render_call.model, render_call.mesh, render_call.material, camera);
 			else renderMeshDeferred(render_call.model, render_call.mesh, render_call.material, camera);
+
 		}
 
 	}
@@ -647,7 +637,6 @@ void Renderer::renderMeshWithMaterial(const Matrix44 model, Mesh* mesh, GTR::Mat
 		case SHOW_AO: shader = Shader::Get("occlusion"); break;
 		case DEFAULT: shader = Shader::Get("light_singlepass"); break;
 		case SHOW_MULTI: shader = Shader::Get("light_multipass"); break;
-		case SHOW_DEPTH: shader = Shader::Get("texture"); break;
 	}
 
 	assert(glGetError() == GL_NO_ERROR);

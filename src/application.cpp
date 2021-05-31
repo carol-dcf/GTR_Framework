@@ -257,16 +257,15 @@ void Application::renderDebugGUI(void)
 
 	// Render Mode
 	changed = false;
-	changed |= ImGui::Combo("Render Mode", (int*)&renderer->render_mode, "DEFAULT\0SHOW_TEXTURE\0SHOW_NORMAL\0SHOW_AO\0SHOW_UVS\0SHOW_MULTI\0SHOW_DEPTH\0SHOW_GBUFFERS\0SHOW_DEFERRED\0SHOW_SSAO", 10);
+	changed |= ImGui::Combo("Render Mode", (int*)&renderer->render_mode, "DEFAULT\0SHOW_TEXTURE\0SHOW_NORMAL\0SHOW_AO\0SHOW_UVS\0SHOW_MULTI\0SHOW_GBUFFERS\0SHOW_DEFERRED\0SHOW_SSAO", 10);
 	if (changed && (renderer->render_mode == GTR::eRenderMode::SHOW_DEFERRED || renderer->render_mode == GTR::eRenderMode::SHOW_GBUFFERS || renderer->render_mode == GTR::eRenderMode::SHOW_SSAO)) {
 		renderer->pipeline_mode = GTR::ePipelineMode::DEFERRED;
 	}
 	else if (changed) renderer->pipeline_mode = GTR::ePipelineMode::FORWARD;
 
-
-
-
 	ImGui::Checkbox("Blur SSAO+", &renderer->blur_ssao);
+
+	ImGui::Checkbox("HDR + Tonemapper", &renderer->hdr);
 
 	//add info to the debug panel about the camera
 	if (ImGui::TreeNode(camera, "Camera")) {
@@ -316,7 +315,6 @@ void Application::onKeyDown(SDL_KeyboardEvent event)
 		case SDLK_o: renderer->render_mode = GTR::eRenderMode::SHOW_TEXTURE; break;
 		case SDLK_p: renderer->render_mode = GTR::eRenderMode::DEFAULT; break;
 		case SDLK_l: renderer->render_mode = GTR::eRenderMode::SHOW_MULTI; break;
-		case SDLK_k: renderer->render_mode = GTR::eRenderMode::SHOW_DEPTH; break;
 		case SDLK_j: renderer->pipeline_mode = GTR::ePipelineMode::DEFERRED; break;
 		case SDLK_h: renderer->pipeline_mode = GTR::ePipelineMode::FORWARD; break;
 		case SDLK_m:
