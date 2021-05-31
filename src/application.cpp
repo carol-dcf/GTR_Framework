@@ -309,12 +309,12 @@ void Application::onKeyDown(SDL_KeyboardEvent event)
 		case SDLK_F1: render_debug = !render_debug; break;
 		case SDLK_f: camera->center.set(0, 0, 0); camera->updateViewMatrix(); break;
 		case SDLK_F5: Shader::ReloadAll(); break;
-		case SDLK_t: renderer->render_mode = GTR::eRenderMode::SHOW_AO; break;
-		case SDLK_u: renderer->render_mode = GTR::eRenderMode::SHOW_UVS; break;
-		case SDLK_i: renderer->render_mode = GTR::eRenderMode::SHOW_NORMAL; break;
-		case SDLK_o: renderer->render_mode = GTR::eRenderMode::SHOW_TEXTURE; break;
-		case SDLK_p: renderer->render_mode = GTR::eRenderMode::DEFAULT; break;
-		case SDLK_l: renderer->render_mode = GTR::eRenderMode::SHOW_MULTI; break;
+		case SDLK_t: renderer->pipeline_mode = GTR::ePipelineMode::FORWARD; renderer->render_mode = GTR::eRenderMode::SHOW_AO; break;
+		case SDLK_u: renderer->pipeline_mode = GTR::ePipelineMode::FORWARD;  renderer->render_mode = GTR::eRenderMode::SHOW_UVS; break;
+		case SDLK_i: renderer->pipeline_mode = GTR::ePipelineMode::FORWARD; renderer->render_mode = GTR::eRenderMode::SHOW_NORMAL; break;
+		case SDLK_o: renderer->pipeline_mode = GTR::ePipelineMode::FORWARD; renderer->render_mode = GTR::eRenderMode::SHOW_TEXTURE; break;
+		case SDLK_p: renderer->pipeline_mode = GTR::ePipelineMode::FORWARD; renderer->render_mode = GTR::eRenderMode::DEFAULT; break;
+		case SDLK_l: renderer->pipeline_mode = GTR::ePipelineMode::FORWARD; renderer->render_mode = GTR::eRenderMode::SHOW_MULTI; break;
 		case SDLK_j: renderer->pipeline_mode = GTR::ePipelineMode::DEFERRED; break;
 		case SDLK_h: renderer->pipeline_mode = GTR::ePipelineMode::FORWARD; break;
 		case SDLK_m:
