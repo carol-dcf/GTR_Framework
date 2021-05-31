@@ -36,6 +36,8 @@ GTR::Renderer::Renderer()
 	gbuffers_fbo = FBO();
 	gbuffers_fbo.create(w, h, 3, GL_RGBA, GL_FLOAT, true);
 
+	dithering = true;
+
 	ssao_fbo = FBO();
 	ssao_fbo.create(w, h, 1, GL_LUMINANCE);
 	ssao_blur = FBO();
@@ -271,53 +273,59 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 
 	glBlendFunc(GL_ONE, GL_ONE);
 
+	std::vector<LightEntity*> directionals;
 
 	for (int i = 0; i < scene->l_entities.size(); ++i) {
 		LightEntity* lent = scene->l_entities[i];
-
 		if (!lent->visible) continue;
-
 		lent->setUniforms(sh);
 
 		if (lent->light_type == POINT || lent->light_type == SPOT)
 		{
 			Matrix44 m;
 			m.setTranslation(lent->model.getTranslation().x, lent->model.getTranslation().y, lent->model.getTranslation().z);
-			//and scale it according to the max_distance of the light
-			m.scale(lent->max_distance, lent->max_distance, lent->max_distance);
-
-			//pass the model to the shader to render the sphere
-			sh->setUniform("u_model", m);
+			m.scale(lent->max_distance, lent->max_distance, lent->max_distance); //and scale it according to the max_distance of the light
+			sh->setUniform("u_model", m); //pass the model to the shader to render the sphere
 
 			sphere->render(GL_TRIANGLES);
 		}
 		else if (lent->light_type == DIRECTIONAL) {
-			Shader* s = Shader::Get("deferred");
-			glDisable(GL_CULL_FACE);
-			glFrontFace(GL_CCW);
-			s->enable();
-			lent->setUniforms(s);
-
-			s->setUniform("u_color_texture", gbuffers_fbo.color_textures[0], 0);
-			s->setUniform("u_normal_texture", gbuffers_fbo.color_textures[1], 1);
-			s->setUniform("u_extra_texture", gbuffers_fbo.color_textures[2], 2);
-			s->setUniform("u_depth_texture", gbuffers_fbo.depth_texture, 3);
-			s->setUniform("u_ao_texture", ssao_blur.color_textures[0], 4);
-			
-			//pass the inverse projection of the camera to reconstruct world pos.
-			s->setUniform("u_inverse_viewprojection", inv_vp);
-			//pass the inverse window resolution, this may be useful
-			s->setUniform("u_iRes", Vector2(1.0 / (float)w, 1.0 / (float)h));
-			
-			s->setUniform("u_ambient_light", Vector3(0, 0, 0));
-			s->setUniform("u_viewprojection", camera->viewprojection_matrix);
-			s->setUniform("u_hdr", hdr);
-
-			glDisable(GL_DEPTH_TEST);
-			quad->render(GL_TRIANGLES);
-			s->disable();
+			directionals.push_back(lent);
 		}
 	}
+
+	// DIRECTIONAL
+	glDisable(GL_CULL_FACE);
+	glFrontFace(GL_CCW);
+	glDisable(GL_DEPTH_TEST);
+	s->enable();
+
+	for (int i = 0; i < directionals.size(); ++i)
+	{
+		LightEntity* lent = directionals[i];
+		if (!lent->visible) continue;
+
+		lent->setUniforms(s);
+
+		s->setUniform("u_color_texture", gbuffers_fbo.color_textures[0], 0);
+		s->setUniform("u_normal_texture", gbuffers_fbo.color_textures[1], 1);
+		s->setUniform("u_extra_texture", gbuffers_fbo.color_textures[2], 2);
+		s->setUniform("u_depth_texture", gbuffers_fbo.depth_texture, 3);
+		s->setUniform("u_ao_texture", ssao_blur.color_textures[0], 4);
+			
+		//pass the inverse projection of the camera to reconstruct world pos.
+		s->setUniform("u_inverse_viewprojection", inv_vp);
+		//pass the inverse window resolution, this may be useful
+		s->setUniform("u_iRes", Vector2(1.0 / (float)w, 1.0 / (float)h));
+			
+		s->setUniform("u_ambient_light", Vector3(0, 0, 0));
+		s->setUniform("u_viewprojection", camera->viewprojection_matrix);
+		s->setUniform("u_hdr", hdr);
+
+		quad->render(GL_TRIANGLES);
+	}
+	s->disable();
+	directionals.clear();
 	
 	glFrontFace(GL_CCW);
 }
@@ -484,9 +492,12 @@ void Renderer::renderScene(GTR::Scene* scene, Camera* camera)
 		if (pipeline_mode == FORWARD)
 			renderMeshWithMaterial(render_call.model, render_call.mesh, render_call.material, camera);
 		else {
-			if (render_call.material->alpha_mode == BLEND)
-				renderMeshWithMaterial(render_call.model, render_call.mesh, render_call.material, camera);
-			else renderMeshDeferred(render_call.model, render_call.mesh, render_call.material, camera);
+			if (dithering) renderMeshDeferred(render_call.model, render_call.mesh, render_call.material, camera);
+			else {
+				if (render_call.material->alpha_mode == BLEND)
+					renderMeshWithMaterial(render_call.model, render_call.mesh, render_call.material, camera);
+				else renderMeshDeferred(render_call.model, render_call.mesh, render_call.material, camera);
+			}
 
 		}
 

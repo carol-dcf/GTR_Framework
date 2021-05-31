@@ -175,6 +175,37 @@ vec3 perturbNormal(vec3 N, vec3 WP, vec2 uv, vec3 normal_pixel){
 	mat3 TBN = cotangent_frame(N, WP, uv);
 	return normalize(TBN * normal_pixel);}
 
+// DITHERING
+\dithering
+float dither4x4(vec2 position, float brightness)
+{
+  int x = int(mod(position.x, 4.0));
+  int y = int(mod(position.y, 4.0));
+  int index = x + y * 4;
+  float limit = 0.0;
+
+  if (x < 8) {
+    if (index == 0) limit = 0.0625;
+    if (index == 1) limit = 0.5625;
+    if (index == 2) limit = 0.1875;
+    if (index == 3) limit = 0.6875;
+    if (index == 4) limit = 0.8125;
+    if (index == 5) limit = 0.3125;
+    if (index == 6) limit = 0.9375;
+    if (index == 7) limit = 0.4375;
+    if (index == 8) limit = 0.25;
+    if (index == 9) limit = 0.75;
+    if (index == 10) limit = 0.125;
+    if (index == 11) limit = 0.625;
+    if (index == 12) limit = 1.0;
+    if (index == 13) limit = 0.5;
+    if (index == 14) limit = 0.875;
+    if (index == 15) limit = 0.375;
+  }
+
+  return brightness < limit ? 0.0 : 1.0;
+}
+
 // IN and UNIFORMS
 \in_uniforms
 
@@ -728,6 +759,7 @@ uniform bool u_hdr;
 //pass here all the uniforms required for illumination...
 out vec4 FragColor;
 
+#include "dithering"
 #include "pbr"
 #include "shadows"
 
@@ -748,6 +780,8 @@ void main()
 	
 	float color_alpha = texture( u_color_texture, uv ).a;
 	if(color_alpha < u_alpha_cutoff) discard;
+	float dither_factor = dither4x4( gl_FragCoord.xy, color_alpha);
+	if ( dither_factor == 0.0) discard;
 	
 	//normals must be converted from 0..1 to -1..+1
 	vec3 N = texture( u_normal_texture, uv ).xyz * 2.0 - 1.0;

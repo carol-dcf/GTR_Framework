@@ -264,8 +264,8 @@ void Application::renderDebugGUI(void)
 	else if (changed) renderer->pipeline_mode = GTR::ePipelineMode::FORWARD;
 
 	ImGui::Checkbox("Blur SSAO+", &renderer->blur_ssao);
-
 	ImGui::Checkbox("HDR + Tonemapper", &renderer->hdr);
+	ImGui::Checkbox("Dithering", &renderer->dithering);
 
 	//add info to the debug panel about the camera
 	if (ImGui::TreeNode(camera, "Camera")) {

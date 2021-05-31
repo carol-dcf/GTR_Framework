@@ -92,6 +92,7 @@ namespace GTR {
 		FBO ssao_blur;
 		bool blur_ssao;
 		bool hdr;
+		bool dithering;
 
 		std::vector<Vector3> random_points;
 

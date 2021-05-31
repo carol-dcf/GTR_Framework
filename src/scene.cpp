@@ -206,8 +206,8 @@ void GTR::PrefabEntity::renderInMenu()
 GTR::LightEntity::LightEntity()
 {
 	entity_type = LIGHT;
-	light_camera = new Camera();
-	fbo = FBO();
+	//light_camera = new Camera();
+	//fbo = FBO();
 	bias = 0.001;
 }
 
@@ -243,6 +243,8 @@ void GTR::LightEntity::renderInMenu()
 
 void GTR::LightEntity::configure(cJSON* json)
 {
+	this->fbo = FBO();
+	this->light_camera = new Camera();
 	if (cJSON_GetObjectItem(json, "color"))
 	{
 		Vector3 color = readJSONVector3(json, "color", Vector3());
