@@ -444,7 +444,7 @@ void Renderer::renderMeshDeferred(const Matrix44 model, Mesh* mesh, GTR::Materia
 	mat_properties_texture = material->metallic_roughness_texture.texture;
 	if (mat_properties_texture == NULL) mat_properties_texture = Texture::getWhiteTexture(); //a 1x1 white texture
 
-	if (material->alpha_mode == GTR::eAlphaMode::BLEND) return;
+	if (!dithering && material->alpha_mode == GTR::eAlphaMode::BLEND) return;
 	else glDisable(GL_BLEND);
 
 	//select if render both sides of the triangles
@@ -469,6 +469,7 @@ void Renderer::renderMeshDeferred(const Matrix44 model, Mesh* mesh, GTR::Materia
 	if (mat_properties_texture) shader->setUniform("u_mat_properties_texture", mat_properties_texture, 2);
 	shader->setUniform("u_read_normal", read_normal);
 	shader->setUniform("u_alpha_cutoff", material->alpha_mode == GTR::eAlphaMode::MASK ? material->alpha_cutoff : 0);
+	shader->setUniform("u_dither", dithering);
 
 	mesh->render(GL_TRIANGLES);
 	shader->disable();
