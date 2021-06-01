@@ -49,6 +49,105 @@ GTR::Renderer::Renderer()
 	hdr = true;
 
 	random_points = generateSpherePoints(64, 1.0, true);
+
+	irr_fbo = FBO();
+	irr_fbo.create(w, h);
+}
+
+void Renderer::renderProbe(Vector3 pos, float size, float* coeffs)
+{
+	Camera* camera = Camera::current;
+	Shader* shader = Shader::Get("probe");
+	Mesh* mesh = Mesh::Get("data/meshes/sphere.obj", true);
+
+	glEnable(GL_CULL_FACE);
+	glDisable(GL_BLEND);
+	glEnable(GL_DEPTH_TEST);
+
+	Matrix44 model;
+	model.setTranslation(pos.x, pos.y, pos.z);
+	model.scale(size, size, size);
+
+	shader->enable();
+	shader->setUniform("u_viewprojection", camera->viewprojection_matrix);
+	shader->setUniform("u_camera_position", camera->eye);
+	shader->setUniform("u_model", model);
+	shader->setUniform3Array("u_coeffs", coeffs, 9);
+
+	mesh->render(GL_TRIANGLES);
+}
+
+void Renderer::defineGrid(Scene* scene) {
+	//define the corners of the axis aligned grid
+	//this can be done using the boundings of our scene
+	Vector3 start_pos(-55, 10, -170);
+	Vector3 end_pos(180, 150, 80);
+
+	//define how many probes you want per dimension
+	Vector3 dim(8, 6, 12);
+
+	//compute the vector from one corner to the other
+	Vector3 delta = (end_pos - start_pos);
+	
+	//and scale it down according to the subdivisions
+	//we substract one to be sure the last probe is at end pos
+	delta.x /= (dim.x - 1);
+	delta.y /= (dim.y - 1);
+	delta.z /= (dim.z - 1);
+
+	//lets compute the centers
+	//pay attention at the order at which we add them
+	for (int z = 0; z < dim.z; ++z)
+		for (int y = 0; y < dim.y; ++y)
+			for (int x = 0; x < dim.x; ++x)
+			{
+				sProbe p;
+				p.local.set(x, y, z);
+
+				//index in the linear array
+				p.index = x + y * dim.x + z * dim.x * dim.y;
+
+				//and its position
+				p.pos = start_pos + delta * Vector3(x, y, z);
+				probes.push_back(p);
+			}
+
+	int num = probes.size();
+	//now compute the coeffs for every probe
+	for (int iP = 0; iP < num; ++iP)
+	{
+		int probe_index = iP;
+		FloatImage images[6]; //here we will store the six views
+
+		//set the fov to 90 and the aspect to 1
+		Camera cam;
+		cam.setPerspective(90, 1, 0.1, 1000);
+
+		sProbe p = probes[iP];
+
+		for (int i = 0; i < 6; ++i) //for every cubemap face
+		{
+			//compute camera orientation using defined vectors
+			Vector3 eye = p.pos;
+			Vector3 front = cubemapFaceNormals[i][2];
+			Vector3 center = p.pos + front;
+			Vector3 up = cubemapFaceNormals[i][1];
+			cam.lookAt(eye, center, up);
+			cam.enable();
+
+			//render the scene from this point of view
+			irr_fbo.bind();
+			renderSceneForward(scene, &cam);
+			irr_fbo.unbind();
+
+			//read the pixels back and store in a FloatImage
+			images[i].fromTexture(irr_fbo.color_textures[0]);
+		}
+
+		//compute the coefficients given the six images
+		p.sh = computeSH(images);
+	}
+	
 }
 
 void GTR::Renderer::addRenderCall(RenderCall renderCall)
@@ -275,6 +374,7 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 
 	std::vector<LightEntity*> directionals;
 
+	
 	for (int i = 0; i < scene->l_entities.size(); ++i) {
 		LightEntity* lent = scene->l_entities[i];
 		if (!lent->visible) continue;
@@ -293,7 +393,7 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 			directionals.push_back(lent);
 		}
 	}
-
+	
 	// DIRECTIONAL
 	glDisable(GL_CULL_FACE);
 	glFrontFace(GL_CCW);
@@ -509,6 +609,23 @@ void Renderer::renderScene(GTR::Scene* scene, Camera* camera)
 	}
 }
 
+void GTR::Renderer::renderSceneForward(GTR::Scene* scene, Camera* camera) {
+	//set the clear color (the background color)
+	glClearColor(scene->background_color.x, scene->background_color.y, scene->background_color.z, 1.0);
+
+	// Clear the color and the depth buffer
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	checkGLErrors();
+
+	collectRCsandLights(scene, camera);
+
+	for (int i = 0; i < renderCalls.size(); ++i)
+	{
+		RenderCall render_call = renderCalls[i];
+		renderMeshWithMaterial(render_call.model, render_call.mesh, render_call.material, camera, scene);
+	}
+}
+
 void GTR::Renderer::renderShadow(GTR::Scene* scene, Camera* camera)
 {
 	//set the clear color (the background color)
@@ -599,7 +716,7 @@ void Renderer::renderNode(const Matrix44& prefab_model, GTR::Node* node, Camera*
 }
 
 //renders a mesh given its transform and material
-void Renderer::renderMeshWithMaterial(const Matrix44 model, Mesh* mesh, GTR::Material* material, Camera* camera)
+void Renderer::renderMeshWithMaterial(const Matrix44 model, Mesh* mesh, GTR::Material* material, Camera* camera, Scene* scene)
 {
 	//in case there is nothing to do
 	if (!mesh || !mesh->getNumVertices() || !material)
@@ -615,7 +732,8 @@ void Renderer::renderMeshWithMaterial(const Matrix44 model, Mesh* mesh, GTR::Mat
 	Texture* normal_texture = NULL;
 	bool have_normalmap = true;
 
-	GTR::Scene* scene = GTR::Scene::instance;
+	if(scene == nullptr) scene = GTR::Scene::instance;
+	//GTR::Scene* scene = GTR::Scene::instance;
 
 	// textures
 	texture = material->color_texture.texture;

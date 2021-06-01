@@ -936,7 +936,7 @@ void main()
 		vec4 proj = u_viewprojection * vec4(p,1.0);
 		proj.xy /= proj.w; //convert to clipspace from homogeneous
 		//apply a tiny bias to its z before converting to clip-space
-		proj.z = (proj.z - 0.005) / proj.w;
+		proj.z = (proj.z - 0.05) / proj.w;
 		proj.xyz = proj.xyz * 0.5 + vec3(0.5); //to [0..1]
 		//read p true depth
 		float pdepth = texture( u_depth_texture, proj.xy ).x;

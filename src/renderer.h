@@ -1,6 +1,7 @@
 #pragma once
 #include "prefab.h"
 #include "fbo.h"
+#include "sphericalharmonics.h"
 
 
 //forward declarations
@@ -74,6 +75,14 @@ namespace GTR {
 		}
 	};
 
+	//struct to store probes
+	struct sProbe {
+		Vector3 pos; //where is located
+		Vector3 local; //its ijk pos in the matrix
+		int index; //its index in the linear array
+		SphericalHarmonics sh; //coeffs
+	};
+
 
 	// This class is in charge of rendering anything in our system.
 	// Separating the render from anything else makes the code cleaner
@@ -85,6 +94,7 @@ namespace GTR {
 		eRenderMode render_mode;
 		ePipelineMode pipeline_mode;
 		bool render_alpha;
+		std::vector<sProbe> probes;
 
 		FBO gbuffers_fbo;
 		FBO illumination_fbo;
@@ -93,6 +103,8 @@ namespace GTR {
 		bool blur_ssao;
 		bool hdr;
 		bool dithering;
+
+		FBO irr_fbo;
 
 		std::vector<Vector3> random_points;
 
@@ -110,6 +122,10 @@ namespace GTR {
 
 		void renderToFBO(GTR::Scene* scene, Camera* camera);
 
+		void renderProbe(Vector3 pos, float size, float* coeffs);
+
+		void defineGrid(Scene* scene);
+
 		void renderToFBOForward(GTR::Scene* scene, Camera* camera);
 		void renderToFBODeferred(GTR::Scene* scene, Camera* camera);
 		void renderMeshDeferred(const Matrix44 model, Mesh* mesh, GTR::Material* material, Camera* camera);
@@ -124,6 +140,7 @@ namespace GTR {
 
 		//renders several elements of the scene
 		void renderScene(GTR::Scene* scene, Camera* camera);
+		void renderSceneForward(GTR::Scene* scene, Camera* camera);
 		void renderShadow(GTR::Scene* scene, Camera* camera);
 		void generateShadowmaps(GTR::Scene* scene);
 		void getShadows(const Matrix44 model, Mesh* mesh, GTR::Material* material, Camera* camera);
@@ -135,7 +152,7 @@ namespace GTR {
 		void renderNode(const Matrix44& model, GTR::Node* node, Camera* camera);
 
 		//to render one mesh given its material and transformation matrix
-		void renderMeshWithMaterial(const Matrix44 model, Mesh* mesh, GTR::Material* material, Camera* camera);
+		void renderMeshWithMaterial(const Matrix44 model, Mesh* mesh, GTR::Material* material, Camera* camera, Scene* scene = nullptr);
 
 		void resize(int width, int height);
 		};
