@@ -34,24 +34,24 @@ GTR::Renderer::Renderer()
 	render_mode = GTR::eRenderMode::DEFAULT;
 	pipeline_mode = GTR::ePipelineMode::FORWARD;
 	gbuffers_fbo = FBO();
-	gbuffers_fbo.create(w, h, 3, GL_RGBA, GL_FLOAT, true);
+	gbuffers_fbo.create(w, h, 3, GL_RGBA, GL_UNSIGNED_BYTE, true);
 
 	dithering = true;
 
 	ssao_fbo = FBO();
-	ssao_fbo.create(w, h, 1, GL_LUMINANCE);
+	ssao_fbo.create(w, h, 1, GL_RGB);
 	ssao_blur = FBO();
 	ssao_blur.create(w, h);
 	blur_ssao = true;
 
 	illumination_fbo = FBO();
-	illumination_fbo.create(w, h, 3, GL_RGB, GL_FLOAT, false);
+	illumination_fbo.create(w, h, 1, GL_RGB, GL_FLOAT, false);
 	hdr = true;
 
 	random_points = generateSpherePoints(64, 1.0, true);
 
 	irr_fbo = FBO();
-	irr_fbo.create(w, h);
+	irr_fbo.create(64, 64, 1, GL_RGB, GL_FLOAT);
 }
 
 void Renderer::renderProbe(Vector3 pos, float size, float* coeffs)
@@ -95,6 +95,8 @@ void Renderer::defineGrid(Scene* scene) {
 	delta.y /= (dim.y - 1);
 	delta.z /= (dim.z - 1);
 
+	probes.clear();
+
 	//lets compute the centers
 	//pay attention at the order at which we add them
 	for (int z = 0; z < dim.z; ++z)
@@ -112,16 +114,18 @@ void Renderer::defineGrid(Scene* scene) {
 				probes.push_back(p);
 			}
 
+	FloatImage images[6]; //here we will store the six views
+
+	//set the fov to 90 and the aspect to 1
+	Camera cam;
+	cam.setPerspective(90, 1, 0.1, 1000);
+
 	int num = probes.size();
 	//now compute the coeffs for every probe
 	for (int iP = 0; iP < num; ++iP)
 	{
 		int probe_index = iP;
-		FloatImage images[6]; //here we will store the six views
-
-		//set the fov to 90 and the aspect to 1
-		Camera cam;
-		cam.setPerspective(90, 1, 0.1, 1000);
+		
 
 		sProbe* p = &probes[iP];
 
@@ -144,10 +148,9 @@ void Renderer::defineGrid(Scene* scene) {
 			images[i].fromTexture(irr_fbo.color_textures[0]);
 		}
 
-		std::cout << "here1" << std::endl;
 		//compute the coefficients given the six images
 		p->sh = computeSH(images);
-		std::cout << "here2" << std::endl;
+		
 	}
 	
 }
@@ -296,7 +299,20 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 
 		//joinGbuffers(scene, camera);
 		illuminationDeferred(scene, camera);
-
+		
+		sProbe probe;
+		for (int i = 0; i < probes.size(); i++)
+		{
+			probe = probes[i];
+			renderProbe(probe.pos, 5.0, probe.sh.coeffs[0].v);
+		}
+		
+		// probe example
+		//memset(&probe, 0, sizeof(probe));
+		//probe.sh.coeffs[0].set(1, 0, 0);
+		//probe.sh.coeffs[1].set(0, 1, 0);
+		//renderProbe(Vector3(0,1,0), 2.0, probe.sh.coeffs[0].v);
+		
 		illumination_fbo.unbind();
 		//be sure blending is not active
 		glDisable(GL_BLEND);
@@ -305,7 +321,6 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 		glViewport(0.0f, 0.0f, w, h);
 
 		illumination_fbo.color_textures[0]->toViewport(s_final);
-
 	}
 	shader->disable();
 	
