@@ -103,8 +103,10 @@ namespace GTR {
 		bool blur_ssao;
 		bool hdr;
 		bool dithering;
+		bool show_probe;
 
 		FBO irr_fbo;
+		Texture* probes_texture;
 
 		std::vector<Vector3> random_points;
 
@@ -124,7 +126,11 @@ namespace GTR {
 
 		void renderProbe(Vector3 pos, float size, float* coeffs);
 
+		void updateIrradianceCache(Scene* scene);
+
 		void defineGrid(Scene* scene);
+		void computeProbeCoefficients(Scene* scene);
+		void uploadProbes(Vector3 dim);
 
 		void renderToFBOForward(GTR::Scene* scene, Camera* camera);
 		void renderToFBODeferred(GTR::Scene* scene, Camera* camera);

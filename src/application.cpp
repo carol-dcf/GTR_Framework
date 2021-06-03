@@ -253,7 +253,7 @@ void Application::renderDebugGUI(void)
 	// Pipeline Mode
 	bool changed = false;
 	changed |= ImGui::Combo("Pipeline Mode", (int*)&renderer->pipeline_mode, "DEFERRED\0FORWARD", 2);
-	if (changed && renderer->pipeline_mode == GTR::ePipelineMode::FORWARD) { renderer->render_mode = GTR::eRenderMode::SHOW_MULTI;	}
+	if (changed && renderer->pipeline_mode == GTR::ePipelineMode::FORWARD) { renderer->render_mode = GTR::eRenderMode::SHOW_MULTI; }
 	else if (changed && renderer->pipeline_mode == GTR::ePipelineMode::DEFERRED) { renderer->render_mode = GTR::eRenderMode::SHOW_DEFERRED; }
 
 	// Render Mode
@@ -264,9 +264,12 @@ void Application::renderDebugGUI(void)
 	}
 	else if (changed) renderer->pipeline_mode = GTR::ePipelineMode::FORWARD;
 
-	ImGui::Checkbox("Blur SSAO+", &renderer->blur_ssao);
-	ImGui::Checkbox("HDR + Tonemapper", &renderer->hdr);
-	ImGui::Checkbox("Dithering", &renderer->dithering);
+	if (renderer->pipeline_mode == GTR::ePipelineMode::DEFERRED) {
+		ImGui::Checkbox("Blur SSAO+", &renderer->blur_ssao);
+		ImGui::Checkbox("HDR + Tonemapper", &renderer->hdr);
+		ImGui::Checkbox("Dithering", &renderer->dithering);
+		ImGui::Checkbox("Show Probes", &renderer->show_probe);
+	}
 
 	//add info to the debug panel about the camera
 	if (ImGui::TreeNode(camera, "Camera")) {
@@ -331,6 +334,7 @@ void Application::onKeyDown(SDL_KeyboardEvent event)
 			camera->lookAt(scene->main_camera.eye, scene->main_camera.center, Vector3(0, 1, 0));
 			camera->fov = scene->main_camera.fov;
 			break;
+		case SDLK_z: renderer->updateIrradianceCache(scene); break;
 	}
 }
 

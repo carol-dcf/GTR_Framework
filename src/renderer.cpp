@@ -52,6 +52,7 @@ GTR::Renderer::Renderer()
 
 	irr_fbo = FBO();
 	irr_fbo.create(64, 64, 1, GL_RGB, GL_FLOAT);
+	show_probe = false;
 }
 
 void Renderer::renderProbe(Vector3 pos, float size, float* coeffs)
@@ -77,11 +78,18 @@ void Renderer::renderProbe(Vector3 pos, float size, float* coeffs)
 	mesh->render(GL_TRIANGLES);
 }
 
+void Renderer::updateIrradianceCache(Scene* scene) 
+{
+	std::cout << "- Updating Irradiance Cache" << std::endl;
+	computeProbeCoefficients(scene);
+}
+
 void Renderer::defineGrid(Scene* scene) {
 	//define the corners of the axis aligned grid
 	//this can be done using the boundings of our scene
-	Vector3 start_pos(-55, 10, -170);
-	Vector3 end_pos(180, 150, 80);
+
+	Vector3 start_pos(-200, 10, -350);  //(-55, 10, -170)
+	Vector3 end_pos(550, 250, 450);		//(180, 150, 80)
 
 	//define how many probes you want per dimension
 	Vector3 dim(8, 6, 12);
@@ -114,6 +122,12 @@ void Renderer::defineGrid(Scene* scene) {
 				probes.push_back(p);
 			}
 
+	computeProbeCoefficients(scene);	
+	uploadProbes(dim);
+}
+
+void Renderer::computeProbeCoefficients(Scene* scene) 
+{
 	FloatImage images[6]; //here we will store the six views
 
 	//set the fov to 90 and the aspect to 1
@@ -125,7 +139,7 @@ void Renderer::defineGrid(Scene* scene) {
 	for (int iP = 0; iP < num; ++iP)
 	{
 		int probe_index = iP;
-		
+
 
 		sProbe* p = &probes[iP];
 
@@ -150,9 +164,40 @@ void Renderer::defineGrid(Scene* scene) {
 
 		//compute the coefficients given the six images
 		p->sh = computeSH(images);
-		
 	}
+}
+
+void Renderer::uploadProbes(Vector3 dim) {
+	if (!probes_texture) {
+		std::cout << "this should be done only once" << std::endl;
+		probes_texture = new Texture(9, probes.size(), GL_RGB, GL_FLOAT);
+	}
+
+	SphericalHarmonics* sh_data = NULL;
+	sh_data = new SphericalHarmonics[dim.x * dim.y * dim.z];
 	
+	// fill data
+	sProbe p;
+	int index;
+	for (int z = 0; z < dim.z; ++z)
+		for (int y = 0; y < dim.y; ++y)
+			for (int x = 0; x < dim.x; ++x)
+			{
+				index = x + y * dim.x + z * dim.x * dim.y;
+				p = probes[index];
+				sh_data[index] = p.sh;
+			}
+
+	//now upload the data to the GPU
+	probes_texture->upload(GL_RGB, GL_FLOAT, false, (uint8*)sh_data);
+
+	//disable any texture filtering when reading
+	probes_texture->bind();
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+	//always free memory after allocating it!!!
+	delete[] sh_data;
 }
 
 void GTR::Renderer::addRenderCall(RenderCall renderCall)
@@ -300,18 +345,14 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 		//joinGbuffers(scene, camera);
 		illuminationDeferred(scene, camera);
 		
-		sProbe probe;
-		for (int i = 0; i < probes.size(); i++)
-		{
-			probe = probes[i];
-			renderProbe(probe.pos, 5.0, probe.sh.coeffs[0].v);
+		if (show_probe) {
+			sProbe probe;
+			for (int i = 0; i < probes.size(); i++)
+			{
+				probe = probes[i];
+				renderProbe(probe.pos, 5.0, probe.sh.coeffs[0].v);
+			}
 		}
-		
-		// probe example
-		//memset(&probe, 0, sizeof(probe));
-		//probe.sh.coeffs[0].set(1, 0, 0);
-		//probe.sh.coeffs[1].set(0, 1, 0);
-		//renderProbe(Vector3(0,1,0), 2.0, probe.sh.coeffs[0].v);
 		
 		illumination_fbo.unbind();
 		//be sure blending is not active
