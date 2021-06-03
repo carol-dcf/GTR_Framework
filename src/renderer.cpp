@@ -123,14 +123,14 @@ void Renderer::defineGrid(Scene* scene) {
 		Camera cam;
 		cam.setPerspective(90, 1, 0.1, 1000);
 
-		sProbe p = probes[iP];
+		sProbe* p = &probes[iP];
 
 		for (int i = 0; i < 6; ++i) //for every cubemap face
 		{
 			//compute camera orientation using defined vectors
-			Vector3 eye = p.pos;
+			Vector3 eye = p->pos;
 			Vector3 front = cubemapFaceNormals[i][2];
-			Vector3 center = p.pos + front;
+			Vector3 center = p->pos + front;
 			Vector3 up = cubemapFaceNormals[i][1];
 			cam.lookAt(eye, center, up);
 			cam.enable();
@@ -144,8 +144,10 @@ void Renderer::defineGrid(Scene* scene) {
 			images[i].fromTexture(irr_fbo.color_textures[0]);
 		}
 
+		std::cout << "here1" << std::endl;
 		//compute the coefficients given the six images
-		p.sh = computeSH(images);
+		p->sh = computeSH(images);
+		std::cout << "here2" << std::endl;
 	}
 	
 }
