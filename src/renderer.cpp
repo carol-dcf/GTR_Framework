@@ -82,20 +82,14 @@ void Renderer::updateIrradianceCache(Scene* scene)
 {
 	std::cout << "- Updating Irradiance Cache" << std::endl;
 	computeProbeCoefficients(scene);
+	uploadProbes();
 }
 
 void Renderer::defineGrid(Scene* scene) {
 	//define the corners of the axis aligned grid
-	//this can be done using the boundings of our scene
-
-	Vector3 start_pos(-200, 10, -350);  //(-55, 10, -170)
-	Vector3 end_pos(550, 250, 450);		//(180, 150, 80)
-
-	//define how many probes you want per dimension
-	Vector3 dim(8, 6, 12);
-
+	// 
 	//compute the vector from one corner to the other
-	Vector3 delta = (end_pos - start_pos);
+	delta = (end_pos - start_pos);
 	
 	//and scale it down according to the subdivisions
 	//we substract one to be sure the last probe is at end pos
@@ -123,7 +117,7 @@ void Renderer::defineGrid(Scene* scene) {
 			}
 
 	computeProbeCoefficients(scene);	
-	uploadProbes(dim);
+	uploadProbes();
 }
 
 void Renderer::computeProbeCoefficients(Scene* scene) 
@@ -167,7 +161,7 @@ void Renderer::computeProbeCoefficients(Scene* scene)
 	}
 }
 
-void Renderer::uploadProbes(Vector3 dim) {
+void Renderer::uploadProbes() {
 	if (!probes_texture) {
 		std::cout << "this should be done only once" << std::endl;
 		probes_texture = new Texture(9, probes.size(), GL_RGB, GL_FLOAT);
@@ -386,11 +380,19 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 	s->setUniform("u_extra_texture", gbuffers_fbo.color_textures[2], 2);
 	s->setUniform("u_depth_texture", gbuffers_fbo.depth_texture, 3);
 	s->setUniform("u_ao_texture", ssao_blur.color_textures[0], 4);
+	s->setUniform("u_probes_texture", probes_texture, 6);
 	
 	//pass the inverse projection of the camera to reconstruct world pos.
 	s->setUniform("u_inverse_viewprojection", inv_vp);
 	//pass the inverse window resolution, this may be useful
 	s->setUniform("u_iRes", Vector2(1.0 / (float)w, 1.0 / (float)h));
+
+	s->setUniform("u_irr_end", end_pos);
+	s->setUniform("u_irr_start", start_pos);
+	s->setUniform("u_irr_normal_distance", (float)10.0);
+	s->setUniform("u_irr_delta", delta);
+	s->setUniform("u_irr_dims", dim);
+	s->setUniform("u_num_probes", (int)probes.size());
 
 	s->setUniform("u_ambient_light", scene->ambient_light);
 	s->setUniform("u_viewprojection", camera->viewprojection_matrix);
@@ -413,6 +415,7 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 	sh->setUniform("u_extra_texture", gbuffers_fbo.color_textures[2], 2);
 	sh->setUniform("u_depth_texture", gbuffers_fbo.depth_texture, 3);
 	sh->setUniform("u_ao_texture", ssao_blur.color_textures[0], 4);
+	sh->setUniform("u_probes_texture", Texture::getBlackTexture(), 6);
 
 	//pass the inverse projection of the camera to reconstruct world pos.
 	sh->setUniform("u_inverse_viewprojection", inv_vp);
@@ -470,6 +473,7 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 		s->setUniform("u_extra_texture", gbuffers_fbo.color_textures[2], 2);
 		s->setUniform("u_depth_texture", gbuffers_fbo.depth_texture, 3);
 		s->setUniform("u_ao_texture", ssao_blur.color_textures[0], 4);
+		s->setUniform("u_probes_texture", Texture::getBlackTexture(), 6);
 			
 		//pass the inverse projection of the camera to reconstruct world pos.
 		s->setUniform("u_inverse_viewprojection", inv_vp);
