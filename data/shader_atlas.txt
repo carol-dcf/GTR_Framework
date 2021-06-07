@@ -18,6 +18,8 @@ blur quad.vs blur.fs
 final quad.vs final.fs 
 // IRRADIANCE
 probe basic.vs probe.fs
+//SKYBOX
+skybox basic.vs skybox.fs
 // OTHERS
 normal basic.vs normal.fs
 shadow basic.vs shadow.fs
@@ -663,6 +665,8 @@ uniform float u_spotCosineCutoff; // cos(angle) spotlight
 uniform float u_spotExponent; // exp spotlight
 uniform bool u_read_normal; // normal texture?
 
+uniform samplerCube u_environment_texture;
+
 out vec4 FragColor;
 
 #include "norm_tangent"
@@ -695,6 +699,7 @@ void main()
 
 	// light vector
 	vec3 L;
+	vec3 V = v_world_position - u_camera_position;
 
 	//depending on the light type...
 	if( u_light_type == 3 ) //directional  light
@@ -741,6 +746,8 @@ void main()
 
 	color.xyz *= light;
 	color.xyz += emissive.xyz * u_emissive_factor;
+	
+	color = texture(u_environment_texture, -V);
 	
 	FragColor = color;
 }
@@ -1141,4 +1148,24 @@ void main()
 
 		vec4 color = vec4( ComputeSHIrradiance(N,sh), 1.0);
 		FragColor = color;
+}
+
+\skybox.fs
+
+#version 330 core
+
+in vec3 v_world_position;
+
+uniform vec3 u_color;
+uniform vec3 u_camera_eye;
+uniform samplerCube u_texture;
+
+out vec4 FragColor;
+
+void main()
+{
+	vec3 V = v_world_position - u_camera_eye;
+	vec4 color = texture(u_texture, -V);
+	
+	FragColor = color;
 }

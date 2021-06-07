@@ -55,6 +55,34 @@ GTR::Renderer::Renderer()
 	show_probe = false;
 }
 
+void Renderer::renderSkyBox(Texture* environment, Camera* camera) {
+	Mesh* sphere = Mesh::Get("data/meshes/sphere.obj", true);
+	Shader* s = Shader::Get("skybox");
+
+	s->enable();
+	
+	Matrix44 m;
+	m.translate(camera->eye.x, camera->eye.y , camera->eye.z);
+	m.scale(10.0, 10.0, 10.0);
+
+	s->setUniform("u_model", m);
+	s->setUniform("u_viewprojection", camera->viewprojection_matrix);
+	s->setUniform("u_camera_eye", camera->eye);
+	s->setTexture("u_texture", environment, 0);
+
+	glDisable(GL_CULL_FACE);
+	glDisable(GL_DEPTH_TEST);
+	glDisable(GL_BLEND);
+
+	sphere->render(GL_TRIANGLES);
+
+	glEnable(GL_CULL_FACE);
+	glEnable(GL_DEPTH_TEST);
+
+	s->disable();
+
+}
+
 void Renderer::renderProbe(Vector3 pos, float size, float* coeffs)
 {
 	Camera* camera = Camera::current;
@@ -86,8 +114,10 @@ void Renderer::updateIrradianceCache(Scene* scene)
 }
 
 void Renderer::defineGrid(Scene* scene) {
+
+	std::cout << " - Creating irradiance grid" << std::endl;
+
 	//define the corners of the axis aligned grid
-	// 
 	//compute the vector from one corner to the other
 	delta = (end_pos - start_pos);
 	
@@ -115,6 +145,8 @@ void Renderer::defineGrid(Scene* scene) {
 				p.pos = start_pos + delta * Vector3(x, y, z);
 				probes.push_back(p);
 			}
+
+	probes_texture = new Texture(9, probes.size(), GL_RGB, GL_FLOAT);
 
 	computeProbeCoefficients(scene);	
 	uploadProbes();
@@ -162,10 +194,6 @@ void Renderer::computeProbeCoefficients(Scene* scene)
 }
 
 void Renderer::uploadProbes() {
-	if (!probes_texture) {
-		std::cout << "this should be done only once" << std::endl;
-		probes_texture = new Texture(9, probes.size(), GL_RGB, GL_FLOAT);
-	}
 
 	SphericalHarmonics* sh_data = NULL;
 	sh_data = new SphericalHarmonics[dim.x * dim.y * dim.z];
@@ -651,6 +679,8 @@ void Renderer::renderScene(GTR::Scene* scene, Camera* camera)
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	checkGLErrors();
 
+	renderSkyBox(scene->environment, camera);
+
 	collectRCsandLights(scene, camera);
 
 	for (int i = 0; i < renderCalls.size(); ++i)
@@ -864,6 +894,9 @@ void Renderer::renderMeshWithMaterial(const Matrix44 model, Mesh* mesh, GTR::Mat
 	shader->setUniform("u_ambient_light", scene->ambient_light);
 	shader->setUniform("u_emissive_factor", material->emissive_factor);
 
+	if (scene->environment) 
+		shader->setTexture("u_environment_texture", scene->environment, 7);
+	
 
 	// SINGLE PASS
 	if (render_mode == DEFAULT)
