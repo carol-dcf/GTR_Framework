@@ -94,6 +94,8 @@ namespace GTR {
 		Vector3 ambient_light;
 		Camera main_camera;
 
+		Texture* environment;
+
 		Scene();
 
 		std::string filename;

@@ -107,7 +107,7 @@ namespace GTR {
 
 		FBO irr_fbo;
 		Texture* probes_texture;
-		Vector3 dim = Vector3(2, 2, 2); //(8, 6, 12)
+		Vector3 dim = Vector3(8, 6, 12); //(8, 6, 12)
 		Vector3 start_pos = Vector3(-200, 10, -350);  //(-55, 10, -170)
 		Vector3 end_pos = Vector3(550, 250, 450);	  //(180, 150, 80)	
 		Vector3 delta;
