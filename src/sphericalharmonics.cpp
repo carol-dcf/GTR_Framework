@@ -47,6 +47,7 @@ SphericalHarmonics computeSH( FloatImage images[], bool degamma ) {
     int size = images[0].width;
     int channels = 3;
     SphericalHarmonics sh;
+    memset(&sh.coeffs, 0, sizeof(sh.coeffs));
 
     // generate cube map vectors
     if (cubeMapVecs_size != size)

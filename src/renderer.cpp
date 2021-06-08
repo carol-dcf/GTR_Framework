@@ -181,6 +181,7 @@ void Renderer::computeProbeCoefficients(Scene* scene)
 
 			//render the scene from this point of view
 			irr_fbo.bind();
+			GTR::eRenderMode aux_render_mode = render_mode;
 			renderSceneForward(scene, &cam);
 			irr_fbo.unbind();
 
@@ -364,9 +365,10 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 		glClearColor(0, 0, 0, 1.0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		//joinGbuffers(scene, camera);
+
+		renderSkyBox(scene->environment, camera);
 		illuminationDeferred(scene, camera);
-		
+
 		if (show_probe) {
 			sProbe probe;
 			for (int i = 0; i < probes.size(); i++)
@@ -377,13 +379,15 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 		}
 		
 		illumination_fbo.unbind();
+
 		//be sure blending is not active
 		glDisable(GL_BLEND);
 		Shader* s_final = NULL;
 		if (hdr) s_final = Shader::Get("final");
 		glViewport(0.0f, 0.0f, w, h);
 
-		illumination_fbo.color_textures[0]->toViewport(s_final);
+		//illumination_fbo.color_textures[0]->toViewport(s_final);
+		probes_texture->toViewport();
 	}
 	shader->disable();
 	
@@ -428,10 +432,12 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 	s->setUniform("u_hdr", hdr);
 
 	glDisable(GL_DEPTH_TEST);
-	glEnable(GL_BLEND);
+	glDisable(GL_BLEND);
 	quad->render(GL_TRIANGLES);
 	s->disable();
-	
+
+	glEnable(GL_BLEND);
+
 	Mesh* sphere = Mesh::Get("data/meshes/sphere.obj", true);
 
 	Shader* sh = Shader::Get("deferred_ws");
@@ -482,7 +488,6 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 			directionals.push_back(lent);
 		}
 	}
-	
 	// DIRECTIONAL
 	glDisable(GL_CULL_FACE);
 	glFrontFace(GL_CCW);
@@ -678,8 +683,6 @@ void Renderer::renderScene(GTR::Scene* scene, Camera* camera)
 	// Clear the color and the depth buffer
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	checkGLErrors();
-
-	renderSkyBox(scene->environment, camera);
 
 	collectRCsandLights(scene, camera);
 

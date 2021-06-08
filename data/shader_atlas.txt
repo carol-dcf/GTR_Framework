@@ -887,6 +887,7 @@ void main()
 	
 	//reconstruct world position from depth and inv. viewproj
 	float depth = texture( u_depth_texture, uv ).x;
+	if (depth >= 1.0) discard;
 	vec4 screen_pos = vec4(uv.x*2.0-1.0, uv.y*2.0-1.0, depth*2.0-1.0, 1.0);
 	vec4 proj_worldpos = u_inverse_viewprojection * screen_pos;
 	vec3 worldpos = proj_worldpos.xyz / proj_worldpos.w;
@@ -1165,7 +1166,7 @@ out vec4 FragColor;
 void main()
 {
 	vec3 V = v_world_position - u_camera_eye;
-	vec4 color = texture(u_texture, -V);
+	vec4 color = texture(u_texture, V);
 	
 	FragColor = color;
 }

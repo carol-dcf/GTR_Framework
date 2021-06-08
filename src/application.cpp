@@ -70,7 +70,7 @@ Application::Application(int window_width, int window_height, SDL_Window* window
 	if (!scene->load("data/scene.json"))
 		exit(1);
 
-	scene->environment = GTR::CubemapFromHDRE("data/panorama.hdre");
+	scene->environment = GTR::CubemapFromHDRE("data/night.hdre");
 
 	camera->lookAt(scene->main_camera.eye, scene->main_camera.center, Vector3(0, 1, 0));
 	camera->fov = scene->main_camera.fov;
