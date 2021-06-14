@@ -56,7 +56,7 @@ GTR::Renderer::Renderer()
 }
 
 void Renderer::renderSkyBox(Texture* environment, Camera* camera) {
-	Mesh* sphere = Mesh::Get("data/meshes/sphere.obj", true);
+	Mesh* sphere = Mesh::Get("data/meshes/sphere.obj", false);
 	Shader* s = Shader::Get("skybox");
 
 	s->enable();
@@ -87,7 +87,7 @@ void Renderer::renderProbe(Vector3 pos, float size, float* coeffs)
 {
 	Camera* camera = Camera::current;
 	Shader* shader = Shader::Get("probe");
-	Mesh* mesh = Mesh::Get("data/meshes/sphere.obj", true);
+	Mesh* mesh = Mesh::Get("data/meshes/sphere.obj", false);
 
 	glEnable(GL_CULL_FACE);
 	glDisable(GL_BLEND);
@@ -182,7 +182,9 @@ void Renderer::computeProbeCoefficients(Scene* scene)
 			//render the scene from this point of view
 			irr_fbo.bind();
 			GTR::eRenderMode aux_render_mode = render_mode;
+			render_mode = GTR::eRenderMode::DEFAULT;
 			renderSceneForward(scene, &cam);
+			render_mode = aux_render_mode;
 			irr_fbo.unbind();
 
 			//read the pixels back and store in a FloatImage
@@ -386,8 +388,8 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 		if (hdr) s_final = Shader::Get("final");
 		glViewport(0.0f, 0.0f, w, h);
 
-		//illumination_fbo.color_textures[0]->toViewport(s_final);
-		probes_texture->toViewport();
+		illumination_fbo.color_textures[0]->toViewport(s_final);
+		//probes_texture->toViewport();
 	}
 	shader->disable();
 	
@@ -438,7 +440,7 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 
 	glEnable(GL_BLEND);
 
-	Mesh* sphere = Mesh::Get("data/meshes/sphere.obj", true);
+	Mesh* sphere = Mesh::Get("data/meshes/sphere.obj", false);
 
 	Shader* sh = Shader::Get("deferred_ws");
 
@@ -905,7 +907,7 @@ void Renderer::renderMeshWithMaterial(const Matrix44 model, Mesh* mesh, GTR::Mat
 	if (render_mode == DEFAULT)
 	{
 		// lights
-		int num_lights = scene->l_entities.size();
+		int num_lights = 5;
 		Vector3 light_position[5];
 		Vector3 light_color[5];
 		Vector3 light_vector[5];
