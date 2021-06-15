@@ -76,7 +76,7 @@ void Renderer::initReflectionProbes(Scene* scene) {
 	delta.y /= (dim.y - 1);
 	delta.z /= (dim.z - 1);
 
-	probes.clear();
+	reflection_probes.clear();
 
 	//lets compute the centers
 	//pay attention at the order at which we add them
@@ -485,8 +485,10 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 
 		if (show_probe) {
 			sProbe probe;
+			std::cout << "Showing outside loop" << std::endl;
 			for (int i = 0; i < probes.size(); i++)
 			{
+				std::cout << "Showing probes" << std::endl;
 				probe = probes[i];
 				renderProbe(probe.pos, 5.0, probe.sh.coeffs[0].v);
 			}
