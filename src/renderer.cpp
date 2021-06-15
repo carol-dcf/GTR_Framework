@@ -55,6 +55,89 @@ GTR::Renderer::Renderer()
 	show_probe = false;
 
 	irr_normal_distance = 10.0;
+
+	reflections_fbo = FBO();
+	reflections_fbo.create(64, 64, 1, GL_RGB, GL_FLOAT);
+
+	show_ref_probes = false;
+}
+
+void Renderer::initReflectionProbes(Scene* scene) {
+
+	std::cout << " - Creating reflection grid" << std::endl;
+
+	//define the corners of the axis aligned grid
+	//compute the vector from one corner to the other
+	delta = (end_pos - start_pos);
+
+	//and scale it down according to the subdivisions
+	//we substract one to be sure the last probe is at end pos
+	delta.x /= (dim.x - 1);
+	delta.y /= (dim.y - 1);
+	delta.z /= (dim.z - 1);
+
+	probes.clear();
+
+	//lets compute the centers
+	//pay attention at the order at which we add them
+	for (int z = 0; z < dim.z; ++z)
+		for (int y = 0; y < dim.y; ++y)
+			for (int x = 0; x < dim.x; ++x)
+			{
+				//create the probe
+				sReflectionProbe* probe = new sReflectionProbe;
+
+				//set it up
+				probe->pos = start_pos + delta * Vector3(x, y, z);
+				probe->cubemap = new Texture();
+				probe->cubemap->createCubemap(512, 512, NULL, GL_RGB, GL_UNSIGNED_INT, false);
+
+				//add it to the list
+				reflection_probes.push_back(probe);
+			}
+
+	captureCubemaps(scene);
+}
+
+void Renderer::captureCubemaps(Scene* scene) {
+	//for every reflection probe...
+
+	//define camera with fov 90
+	Camera cam;
+	cam.setPerspective(90, 1, 0.1, 1000);
+
+	int num = reflection_probes.size();
+	//now compute the coeffs for every probe
+	for (int iP = 0; iP < num; ++iP)
+	{
+		int probe_index = iP;
+
+
+		sReflectionProbe probe = *reflection_probes[iP];
+
+
+		//render the view from every side
+		for (int i = 0; i < 6; ++i)
+		{
+			//assign cubemap face to FBO
+			reflections_fbo.setTexture(probe.cubemap, i);
+
+			//bind FBO
+			reflections_fbo.bind();
+
+			//render view
+			Vector3 eye = probe.pos;
+			Vector3 center = probe.pos + cubemapFaceNormals[i][2];
+			Vector3 up = cubemapFaceNormals[i][1];
+			cam.lookAt(eye, center, up);
+			cam.enable();
+			renderSceneForward(scene, &cam);
+			reflections_fbo.unbind();
+		}
+
+		//generate the mipmaps
+		probe.cubemap->generateMipmaps();
+	}
 }
 
 void Renderer::renderSkyBox(Texture* environment, Camera* camera) {
@@ -104,6 +187,29 @@ void Renderer::renderProbe(Vector3 pos, float size, float* coeffs)
 	shader->setUniform("u_camera_position", camera->eye);
 	shader->setUniform("u_model", model);
 	shader->setUniform3Array("u_coeffs", coeffs, 9);
+
+	mesh->render(GL_TRIANGLES);
+}
+
+void Renderer::renderReflectionProbe(Vector3 pos, Texture* cubemap, float size)
+{
+	Camera* camera = Camera::current;
+	Shader* shader = Shader::Get("ref_probe");
+	Mesh* mesh = Mesh::Get("data/meshes/sphere.obj", false);
+
+	glEnable(GL_CULL_FACE);
+	glDisable(GL_BLEND);
+	glEnable(GL_DEPTH_TEST);
+
+	Matrix44 model;
+	model.setTranslation(pos.x, pos.y, pos.z);
+	model.scale(size, size, size);
+
+	shader->enable();
+	shader->setUniform("u_viewprojection", camera->viewprojection_matrix);
+	shader->setUniform("u_camera_position", camera->eye);
+	shader->setUniform("u_model", model);
+	shader->setUniform("u_reflection_texture", cubemap, 1);
 
 	mesh->render(GL_TRIANGLES);
 }
@@ -371,7 +477,6 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 		glClearColor(0, 0, 0, 1.0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-
 		renderSkyBox(scene->environment, camera);
 
 		if (render_mode == SHOW_IRRADIANCE) showIrradiance(scene, camera);
@@ -385,6 +490,11 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 				probe = probes[i];
 				renderProbe(probe.pos, 5.0, probe.sh.coeffs[0].v);
 			}
+		}
+
+		if (show_ref_probes) {
+			sReflectionProbe* r_probe = reflection_probes[0];
+			renderReflectionProbe(r_probe->pos, r_probe->cubemap, 10.0);
 		}
 		
 		illumination_fbo.unbind();
@@ -731,6 +841,8 @@ void Renderer::renderScene(GTR::Scene* scene, Camera* camera)
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	checkGLErrors();
 
+	if (pipeline_mode == FORWARD) renderSkyBox(scene->environment, camera);
+
 	collectRCsandLights(scene, camera);
 
 	for (int i = 0; i < renderCalls.size(); ++i)
@@ -758,6 +870,8 @@ void GTR::Renderer::renderSceneForward(GTR::Scene* scene, Camera* camera) {
 	// Clear the color and the depth buffer
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	checkGLErrors();
+
+	renderSkyBox(scene->environment, camera);
 
 	collectRCsandLights(scene, camera);
 

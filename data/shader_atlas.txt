@@ -21,6 +21,7 @@ probe basic.vs probe.fs
 show_irradiance quad.vs irradiance.fs
 //SKYBOX
 skybox basic.vs skybox.fs
+ref_probe basic.vs reflection.fs
 // OTHERS
 normal basic.vs normal.fs
 shadow basic.vs shadow.fs
@@ -785,7 +786,7 @@ void main()
 	color.xyz *= light;
 	color.xyz += emissive.xyz * u_emissive_factor;
 	
-	color = texture(u_environment_texture, -V);
+	//color = texture(u_environment_texture, -V);
 	
 	FragColor = color;
 }
@@ -1229,4 +1230,31 @@ void main()
 	vec3 irradiance = computeIrradiance(u_irr_end, u_irr_start, worldpos, N, u_irr_normal_distance, u_irr_delta, u_irr_dims, u_num_probes, u_probes_texture);
 	
 	FragColor = vec4(irradiance, 1.0);
+}
+
+
+\reflection.fs
+
+# version 330 core
+
+in vec3 v_position;
+in vec3 v_world_position;
+in vec3 v_normal;
+in vec2 v_uv;
+
+uniform samplerCube u_reflection_texture;
+uniform vec3 u_camera_position;
+
+out vec4 FragColor;
+
+void main()
+{
+		vec3 N = normalize(v_normal);
+		vec3 V = v_world_position - u_camera_position;
+		vec3 R = reflect(V, N);
+		
+		vec3 reflection = textureLod(u_reflection_texture, R, 2.0).xyz;
+
+
+		FragColor = vec4(reflection, 1.0);
 }

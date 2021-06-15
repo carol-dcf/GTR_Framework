@@ -78,6 +78,7 @@ Application::Application(int window_width, int window_height, SDL_Window* window
 	//This class will be the one in charge of rendering all 
 	renderer = new GTR::Renderer(); //here so we have opengl ready in constructor
 	renderer->defineGrid(scene);
+	renderer->initReflectionProbes(scene);
 
 	//hide the cursor
 	SDL_ShowCursor(!mouse_locked); //hide or show the mouse
@@ -271,6 +272,7 @@ void Application::renderDebugGUI(void)
 		ImGui::Checkbox("HDR + Tonemapper", &renderer->hdr);
 		ImGui::Checkbox("Dithering", &renderer->dithering);
 		ImGui::Checkbox("Show Probes", &renderer->show_probe);
+		ImGui::Checkbox("Show Ref Probe", &renderer->show_ref_probes);
 		ImGui::SliderFloat("Irr normal distance", &renderer->irr_normal_distance, 0.0, 1000.0);
 	}
 

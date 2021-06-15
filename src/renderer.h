@@ -84,6 +84,11 @@ namespace GTR {
 		SphericalHarmonics sh; //coeffs
 	};
 
+	struct sReflectionProbe {
+		Vector3 pos;
+		Texture* cubemap = NULL;
+	};
+
 
 	// This class is in charge of rendering anything in our system.
 	// Separating the render from anything else makes the code cleaner
@@ -96,15 +101,18 @@ namespace GTR {
 		ePipelineMode pipeline_mode;
 		bool render_alpha;
 		std::vector<sProbe> probes;
+		std::vector<sReflectionProbe*> reflection_probes;
 
 		FBO gbuffers_fbo;
 		FBO illumination_fbo;
 		FBO ssao_fbo;
 		FBO ssao_blur;
+		FBO reflections_fbo;
 		bool blur_ssao;
 		bool hdr;
 		bool dithering;
 		bool show_probe;
+		bool show_ref_probes;
 		float irr_normal_distance;
 
 		FBO irr_fbo;
@@ -130,9 +138,15 @@ namespace GTR {
 
 		void renderToFBO(GTR::Scene* scene, Camera* camera);
 
+		void initReflectionProbes(Scene* scene);
+
+		void captureCubemaps(Scene* scene);
+
 		void renderSkyBox(Texture* environment, Camera* camera);
 
 		void renderProbe(Vector3 pos, float size, float* coeffs);
+
+		void renderReflectionProbe(Vector3 pos, Texture* cubemap, float size);
 
 		void updateIrradianceCache(Scene* scene);
 
