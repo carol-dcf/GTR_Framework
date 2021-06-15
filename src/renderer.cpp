@@ -53,6 +53,8 @@ GTR::Renderer::Renderer()
 	irr_fbo = FBO();
 	irr_fbo.create(64, 64, 1, GL_RGB, GL_FLOAT);
 	show_probe = false;
+
+	irr_normal_distance = 10.0;
 }
 
 void Renderer::renderSkyBox(Texture* environment, Camera* camera) {
@@ -108,7 +110,7 @@ void Renderer::renderProbe(Vector3 pos, float size, float* coeffs)
 
 void Renderer::updateIrradianceCache(Scene* scene) 
 {
-	std::cout << "- Updating Irradiance Cache" << std::endl;
+	std::cout << " - Updating Irradiance Cache" << std::endl;
 	computeProbeCoefficients(scene);
 	uploadProbes();
 }
@@ -212,6 +214,8 @@ void Renderer::uploadProbes() {
 				p = probes[index];
 				sh_data[index] = p.sh;
 			}
+
+	probes_texture->clear();
 
 	//now upload the data to the GPU
 	probes_texture->upload(GL_RGB, GL_FLOAT, false, (uint8*)sh_data);
@@ -369,7 +373,10 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 
 
 		renderSkyBox(scene->environment, camera);
-		illuminationDeferred(scene, camera);
+
+		if (render_mode == SHOW_IRRADIANCE) showIrradiance(scene, camera);
+		else illuminationDeferred(scene, camera);
+
 
 		if (show_probe) {
 			sProbe probe;
@@ -395,6 +402,44 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 	
 	glDisable(GL_BLEND);
 
+}
+
+void Renderer::showIrradiance(GTR::Scene* scene, Camera* camera)
+{
+	float w = Application::instance->window_width;
+	float h = Application::instance->window_height;
+	Matrix44 inv_vp = camera->viewprojection_matrix;
+	inv_vp.inverse();
+	//we need a fullscreen quad
+	Mesh* quad = Mesh::getQuad();
+	// AMBIENT
+	Shader* s = Shader::Get("show_irradiance");
+	s->enable();
+
+	s->setUniform("u_color_texture", gbuffers_fbo.color_textures[0], 0);
+	s->setUniform("u_normal_texture", gbuffers_fbo.color_textures[1], 1);
+	s->setUniform("u_depth_texture", gbuffers_fbo.depth_texture, 3);
+	s->setUniform("u_probes_texture", probes_texture, 6);
+
+	//pass the inverse projection of the camera to reconstruct world pos.
+	s->setUniform("u_inverse_viewprojection", inv_vp);
+	//pass the inverse window resolution, this may be useful
+	s->setUniform("u_iRes", Vector2(1.0 / (float)w, 1.0 / (float)h));
+
+	s->setUniform("u_irr_end", end_pos);
+	s->setUniform("u_irr_start", start_pos);
+	s->setUniform("u_irr_normal_distance", irr_normal_distance);
+	s->setUniform("u_irr_delta", delta);
+	s->setUniform("u_irr_dims", dim);
+	s->setUniform("u_num_probes", (int)probes.size());
+
+
+	glDisable(GL_DEPTH_TEST);
+	glDisable(GL_BLEND);
+	quad->render(GL_TRIANGLES);
+	s->disable();
+
+	glEnable(GL_BLEND);
 }
 
 void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
@@ -423,7 +468,7 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 
 	s->setUniform("u_irr_end", end_pos);
 	s->setUniform("u_irr_start", start_pos);
-	s->setUniform("u_irr_normal_distance", (float)10.0);
+	s->setUniform("u_irr_normal_distance", irr_normal_distance);
 	s->setUniform("u_irr_delta", delta);
 	s->setUniform("u_irr_dims", dim);
 	s->setUniform("u_num_probes", (int)probes.size());

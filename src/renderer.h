@@ -21,7 +21,8 @@ namespace GTR {
 		SHOW_MULTI,
 		SHOW_GBUFFERS,
 		SHOW_DEFERRED,
-		SHOW_SSAO
+		SHOW_SSAO,
+		SHOW_IRRADIANCE
 	};
 
 	enum ePipelineMode {
@@ -104,6 +105,7 @@ namespace GTR {
 		bool hdr;
 		bool dithering;
 		bool show_probe;
+		float irr_normal_distance;
 
 		FBO irr_fbo;
 		Texture* probes_texture;
@@ -140,6 +142,7 @@ namespace GTR {
 
 		void renderToFBOForward(GTR::Scene* scene, Camera* camera);
 		void renderToFBODeferred(GTR::Scene* scene, Camera* camera);
+		void showIrradiance(GTR::Scene* scene, Camera* camera);
 		void renderMeshDeferred(const Matrix44 model, Mesh* mesh, GTR::Material* material, Camera* camera);
 
 		//renders several elements of the scene

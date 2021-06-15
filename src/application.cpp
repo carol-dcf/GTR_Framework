@@ -260,8 +260,8 @@ void Application::renderDebugGUI(void)
 
 	// Render Mode
 	changed = false;
-	changed |= ImGui::Combo("Render Mode", (int*)&renderer->render_mode, "DEFAULT\0SHOW_TEXTURE\0SHOW_NORMAL\0SHOW_AO\0SHOW_UVS\0SHOW_MULTI\0SHOW_GBUFFERS\0SHOW_DEFERRED\0SHOW_SSAO", 10);
-	if (changed && (renderer->render_mode == GTR::eRenderMode::SHOW_DEFERRED || renderer->render_mode == GTR::eRenderMode::SHOW_GBUFFERS || renderer->render_mode == GTR::eRenderMode::SHOW_SSAO)) {
+	changed |= ImGui::Combo("Render Mode", (int*)&renderer->render_mode, "DEFAULT\0SHOW_TEXTURE\0SHOW_NORMAL\0SHOW_AO\0SHOW_UVS\0SHOW_MULTI\0SHOW_GBUFFERS\0SHOW_DEFERRED\0SHOW_SSAO\0SHOW_IRRADIANCE", 11);
+	if (changed && (renderer->render_mode == GTR::eRenderMode::SHOW_DEFERRED || renderer->render_mode == GTR::eRenderMode::SHOW_GBUFFERS || renderer->render_mode == GTR::eRenderMode::SHOW_SSAO || renderer->render_mode == GTR::eRenderMode::SHOW_IRRADIANCE)) {
 		renderer->pipeline_mode = GTR::ePipelineMode::DEFERRED;
 	}
 	else if (changed) renderer->pipeline_mode = GTR::ePipelineMode::FORWARD;
@@ -271,6 +271,7 @@ void Application::renderDebugGUI(void)
 		ImGui::Checkbox("HDR + Tonemapper", &renderer->hdr);
 		ImGui::Checkbox("Dithering", &renderer->dithering);
 		ImGui::Checkbox("Show Probes", &renderer->show_probe);
+		ImGui::SliderFloat("Irr normal distance", &renderer->irr_normal_distance, 0.0, 1000.0);
 	}
 
 	//add info to the debug panel about the camera
