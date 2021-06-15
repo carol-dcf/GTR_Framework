@@ -70,7 +70,7 @@ float computeShadowFactor(mat4 viewproj, vec3 worldpos, float bias, sampler2D sh
 
 \irradiance
 
-vec3 computeIrradiance(vec3 irr_end, vec3 irr_start, vec3 worldpos, vec3 N, vec3 irr_normal_distance, vec3 irr_delta, vec3 irr_dims, float num_probes, sampler2D probes_texture){
+vec3 computeIrradiance(vec3 irr_end, vec3 irr_start, vec3 worldpos, vec3 N, float irr_normal_distance, vec3 irr_delta, vec3 irr_dims, float num_probes, sampler2D probes_texture){
 	//computing nearest probe index based on world position
 	vec3 irr_range = irr_end - irr_start;
 	vec3 irr_local_pos = clamp( worldpos - irr_start + N * irr_normal_distance, vec3(0.0), irr_range );
@@ -88,7 +88,6 @@ vec3 computeIrradiance(vec3 irr_end, vec3 irr_start, vec3 worldpos, vec3 N, vec3
 	float row_uv = (row + 1.0) / (num_probes + 1.0);
 	
 	SH9Color sh;
-	
 	
 	//fill the coefficients
 	const float d_uvx = 1.0 / 9.0;
@@ -856,7 +855,7 @@ uniform bool u_hdr;
 
 uniform vec3 u_irr_end;
 uniform vec3 u_irr_start;
-uniform vec3 u_irr_normal_distance;
+uniform float u_irr_normal_distance;
 uniform vec3 u_irr_delta;
 uniform vec3 u_irr_dims; 
 uniform float u_num_probes;
@@ -1192,7 +1191,7 @@ uniform float u_alpha_cutoff;
 
 uniform vec3 u_irr_end;
 uniform vec3 u_irr_start;
-uniform vec3 u_irr_normal_distance;
+uniform float u_irr_normal_distance;
 uniform vec3 u_irr_delta;
 uniform vec3 u_irr_dims; 
 uniform float u_num_probes;

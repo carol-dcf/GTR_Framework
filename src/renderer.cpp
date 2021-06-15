@@ -321,8 +321,6 @@ void Renderer::uploadProbes() {
 				sh_data[index] = p.sh;
 			}
 
-	probes_texture->clear();
-
 	//now upload the data to the GPU
 	probes_texture->upload(GL_RGB, GL_FLOAT, false, (uint8*)sh_data);
 
@@ -485,10 +483,8 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 
 		if (show_probe) {
 			sProbe probe;
-			std::cout << "Showing outside loop" << std::endl;
 			for (int i = 0; i < probes.size(); i++)
 			{
-				std::cout << "Showing probes" << std::endl;
 				probe = probes[i];
 				renderProbe(probe.pos, 5.0, probe.sh.coeffs[0].v);
 			}
@@ -543,7 +539,7 @@ void Renderer::showIrradiance(GTR::Scene* scene, Camera* camera)
 	s->setUniform("u_irr_normal_distance", irr_normal_distance);
 	s->setUniform("u_irr_delta", delta);
 	s->setUniform("u_irr_dims", dim);
-	s->setUniform("u_num_probes", (int)probes.size());
+	s->setUniform("u_num_probes", (float)probes.size());
 
 
 	glDisable(GL_DEPTH_TEST);
@@ -583,7 +579,7 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 	s->setUniform("u_irr_normal_distance", irr_normal_distance);
 	s->setUniform("u_irr_delta", delta);
 	s->setUniform("u_irr_dims", dim);
-	s->setUniform("u_num_probes", (int)probes.size());
+	s->setUniform("u_num_probes", (float)probes.size());
 
 	s->setUniform("u_ambient_light", scene->ambient_light);
 	s->setUniform("u_viewprojection", camera->viewprojection_matrix);
