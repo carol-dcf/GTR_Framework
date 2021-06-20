@@ -70,17 +70,7 @@ float computeShadowFactor(mat4 viewproj, vec3 worldpos, float bias, sampler2D sh
 
 \irradiance
 
-vec3 computeIrradiance(vec3 irr_end, vec3 irr_start, vec3 worldpos, vec3 N, float irr_normal_distance, vec3 irr_delta, vec3 irr_dims, float num_probes, sampler2D probes_texture){
-	//computing nearest probe index based on world position
-	vec3 irr_range = irr_end - irr_start;
-	vec3 irr_local_pos = clamp( worldpos - irr_start + N * irr_normal_distance, vec3(0.0), irr_range );
-
-	//convert from world pos to grid pos
-	vec3 irr_norm_pos = irr_local_pos / irr_delta;
-
-	//round values as we cannot fetch between rows for now
-	vec3 local_indices = round( irr_norm_pos );
-
+vec3 computeIrr(vec3 local_indices, vec3 N, vec3 irr_dims, float num_probes, sampler2D probes_texture){
 	//compute in which row is the probe stored
 	float row = local_indices.x + local_indices.y * irr_dims.x + local_indices.z * irr_dims.x * irr_dims.y;
 
@@ -99,8 +89,74 @@ vec3 computeIrradiance(vec3 irr_end, vec3 irr_start, vec3 worldpos, vec3 N, floa
 
 	//now we can use the coefficients to compute the irradiance
 	vec3 irradiance = ComputeSHIrradiance( N, sh );
-	
+
 	return irradiance;
+}
+
+vec3 computeIrradiance(vec3 irr_end, vec3 irr_start, vec3 worldpos, vec3 N, float irr_normal_distance, vec3 irr_delta, vec3 irr_dims, float num_probes, sampler2D probes_texture){
+	//computing nearest probe index based on world position
+	vec3 irr_range = irr_end - irr_start;
+	vec3 irr_local_pos = clamp( worldpos - irr_start + N * irr_normal_distance, vec3(0.0), irr_range );
+
+	//convert from world pos to grid pos
+	vec3 irr_norm_pos = irr_local_pos / irr_delta;
+
+	//round values as we cannot fetch between rows for now
+	vec3 local_indices = floor( irr_norm_pos );
+	
+	//now we have the interpolation factors
+	vec3 factors = irr_norm_pos - local_indices;
+
+	//local_indices points to Left,Bottom,Far
+	vec3 indicesLBF = local_indices;
+	//example for right bottom far index
+	vec3 indicesRBF = local_indices;
+	indicesRBF.x += 1; //from left to right
+
+	vec3 indicesLTF = local_indices;
+	indicesLTF.y += 1; 
+	
+	vec3 indicesRTF = local_indices;
+	indicesRTF.x += 1; 
+	indicesRTF.y += 1; 
+
+	vec3 indicesLBN = local_indices;
+	indicesLBN.z += 1; 
+
+	vec3 indicesRBN = local_indices;
+	indicesRBN.x += 1; 
+	indicesRBN.z += 1; 
+
+	vec3 indicesLTN = local_indices;
+	indicesLTN.y += 1; 
+	indicesLTN.z += 1; 
+	
+	vec3 indicesRTN = local_indices;
+	indicesRTN.x += 1; 
+	indicesRTN.y += 1; 
+	indicesRTN.z += 1; 
+
+	//compute irradiance for every corner
+	vec3 irrLBF = computeIrr( indicesLBF, N, irr_dims, num_probes, probes_texture);
+	vec3 irrRBF = computeIrr( indicesRBF, N, irr_dims, num_probes, probes_texture);
+	vec3 irrLTF = computeIrr( indicesLTF, N, irr_dims, num_probes, probes_texture);
+	vec3 irrRTF = computeIrr( indicesRTF, N, irr_dims, num_probes, probes_texture);
+	vec3 irrLBN = computeIrr( indicesLBN, N, irr_dims, num_probes, probes_texture);
+	vec3 irrRBN = computeIrr( indicesRBN, N, irr_dims, num_probes, probes_texture);
+	vec3 irrLTN = computeIrr( indicesLTN, N, irr_dims, num_probes, probes_texture);
+	vec3 irrRTN = computeIrr( indicesRTN, N, irr_dims, num_probes, probes_texture);
+
+	vec3 irrTF = mix( irrLTF, irrRTF, factors.x );
+	vec3 irrBF = mix( irrLBF, irrRBF, factors.x );
+	vec3 irrTN = mix( irrLTN, irrRTN, factors.x );
+	vec3 irrBN = mix( irrLBN, irrRBN, factors.x );
+
+	vec3 irrT = mix( irrTF, irrTN, factors.z );
+	vec3 irrB = mix( irrBF, irrBN, factors.z );
+
+	vec3 irr = mix( irrB, irrT, factors.y );
+	
+	return irr;
 
 }
 
