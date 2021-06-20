@@ -138,7 +138,7 @@ namespace GTR {
 
 		void renderToFBO(GTR::Scene* scene, Camera* camera);
 
-		void initReflectionProbes(Scene* scene);
+		void initReflectionProbe(Scene* scene);
 
 		void captureCubemaps(Scene* scene);
 
@@ -156,12 +156,11 @@ namespace GTR {
 
 		void renderToFBOForward(GTR::Scene* scene, Camera* camera);
 		void renderToFBODeferred(GTR::Scene* scene, Camera* camera);
+		void showVolumetric(GTR::Scene* scene, Camera* camera);
 		void showIrradiance(GTR::Scene* scene, Camera* camera);
 		void renderMeshDeferred(const Matrix44 model, Mesh* mesh, GTR::Material* material, Camera* camera);
 
 		//renders several elements of the scene
-		//void renderScene(GTR::Scene* scene, Camera* camera);
-		void joinGbuffers(GTR::Scene* scene, Camera* camera);
 		void illuminationDeferred(GTR::Scene* scene, Camera* camera);
 
 		void generateSSAO(GTR::Scene* scene, Camera* camera);

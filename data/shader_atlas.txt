@@ -19,9 +19,13 @@ final quad.vs final.fs
 // IRRADIANCE
 probe basic.vs probe.fs
 show_irradiance quad.vs irradiance.fs
-//SKYBOX
+// SKYBOX
 skybox basic.vs skybox.fs
+// REFLECTION
 ref_probe basic.vs reflection.fs
+reflection_def quad.vs reflection_def.fs
+// VOLUMETRIC
+volumetric quad.vs volumetric.fs
 // OTHERS
 normal basic.vs normal.fs
 shadow basic.vs shadow.fs
@@ -915,6 +919,7 @@ uniform float u_irr_normal_distance;
 uniform vec3 u_irr_delta;
 uniform vec3 u_irr_dims; 
 uniform float u_num_probes;
+uniform bool u_first_pass;
 
 //pass here all the uniforms required for illumination...
 out vec4 FragColor;
@@ -956,7 +961,8 @@ void main()
 	ao_factor = pow( ao_factor, 3.0 ); //we could play with the curve to have more control
 
 	// IRRADIANCE
-	vec3 irradiance = computeIrradiance(u_irr_end, u_irr_start, worldpos, N, u_irr_normal_distance, u_irr_delta, u_irr_dims, u_num_probes, u_probes_texture);
+	vec3 irradiance = vec3(0.0);
+	if (u_first_pass) irradiance = computeIrradiance(u_irr_end, u_irr_start, worldpos, N, u_irr_normal_distance, u_irr_delta, u_irr_dims, u_num_probes, u_probes_texture);
 
 	//now do your illumination using worldpos and the normal...
 	//vec3 light = u_ambient_light * ao_factor;
@@ -965,11 +971,10 @@ void main()
 
 	// PBR
 	vec3 direct = computeDirectLight(u_camera_eye, worldpos, L, N, color, metalness, roughness);
-	
+
 	// SHADOW
 	float shadow_factor = 1.0;
 	if (u_light_type != 1) shadow_factor = computeShadowFactor(u_shadow_viewproj, worldpos, u_shadow_bias, shadowmap);
-	
 	
 	//compute distance
 	float light_distance = length(u_light_position - worldpos );
@@ -1006,7 +1011,6 @@ void main()
 
 	color *= light;
 
-	
 	FragColor = vec4(color, 1.0);
 }
 
@@ -1312,4 +1316,119 @@ void main()
 
 
 		FragColor = vec4(reflection, 1.0);
+}
+
+\reflection_def.fs
+
+#version 330 core
+
+uniform mat4 u_inverse_viewprojection;
+uniform vec2 u_iRes;
+
+uniform sampler2D u_color_texture;
+uniform sampler2D u_normal_texture;
+uniform sampler2D u_extra_texture;
+uniform sampler2D u_depth_texture;
+uniform samplerCube u_reflection_texture;
+
+uniform vec3 u_camera_eye;
+uniform bool u_hdr;
+
+out vec4 FragColor;
+
+vec3 degamma(vec3 c) { return pow(c,vec3(2.2)); }
+
+void main()
+{
+	//extract uvs from pixel screenpos
+	vec2 uv = gl_FragCoord.xy * u_iRes.xy; 
+	vec3 color = texture( u_color_texture, uv ).xyz;
+	if (u_hdr) color = degamma(color);
+	float roughness = texture(u_extra_texture, uv).y;
+	float metalness = texture(u_extra_texture, uv).z;
+	
+	//normals must be converted from 0..1 to -1..+1
+	vec3 N = texture( u_normal_texture, uv ).xyz * 2.0 - 1.0;
+	
+	//reconstruct world position from depth and inv. viewproj
+	float depth = texture( u_depth_texture, uv ).x;
+	if (depth >= 1.0) discard;
+	vec4 screen_pos = vec4(uv.x*2.0-1.0, uv.y*2.0-1.0, depth*2.0-1.0, 1.0);
+	vec4 proj_worldpos = u_inverse_viewprojection * screen_pos;
+	vec3 worldpos = proj_worldpos.xyz / proj_worldpos.w;
+
+	// REFLECTION
+	vec3 V = worldpos - u_camera_eye;
+	vec3 R = reflect(V, N);
+	vec3 reflection = color * textureLod(u_reflection_texture, R, roughness * 5.0 ).xyz;
+
+	//set the metalness as alpha
+	FragColor = vec4( reflection, metalness );
+
+}
+
+
+\volumetric.fs
+
+#version 330 core
+
+in vec2 v_uv;
+
+uniform sampler2D u_depth_texture;
+uniform mat4 u_inverse_viewprojection;
+uniform mat4 viewproj;
+uniform float u_bias;
+uniform sampler2D shadowmap;
+uniform vec3 u_light_color;
+uniform vec2 u_iRes;
+
+uniform vec3 u_camera_eye;
+
+#include "shadows"
+
+#define SAMPLES 64
+
+out vec4 FragColor;
+
+void main()
+{
+	//extract uvs from pixel screenpos
+	vec2 uv = gl_FragCoord.xy * u_iRes.xy;
+
+	//reconstruct world position from depth and inv. viewproj
+	float depth = texture( u_depth_texture, uv ).x;
+	if (depth >= 1.0) discard;
+	vec4 screen_pos = vec4(uv.x*2.0-1.0, uv.y*2.0-1.0, depth*2.0-1.0, 1.0);
+	vec4 proj_worldpos = u_inverse_viewprojection * screen_pos;
+	vec3 worldpos = proj_worldpos.xyz / proj_worldpos.w;
+
+	vec3 color = vec3(0.0);
+
+	vec3 ray_dir = worldpos - u_camera_eye;
+	float dist = length(ray_dir);
+	ray_dir /= dist;
+	float step_dist = dist / float(SAMPLES);
+	float air_density = 0.01;
+
+	vec3 current_pos = u_camera_eye;
+	vec3 ray_offset = ray_dir * step_dist;
+	float transparency = 1.0;
+	float pixel_transparency = air_density * step_dist;
+	float shadow_factor;
+
+	for ( int i = 0; i < SAMPLES; ++i)
+	{
+
+		transparency -= pixel_transparency;
+
+		shadow_factor = computeShadowFactor(viewproj, current_pos, u_bias, shadowmap);
+		color += shadow_factor * u_light_color * pixel_transparency;
+		//too dense, nothing can be seen behind
+		if( transparency < 0.001 )
+			break;
+
+		current_pos.xyz += ray_offset;	
+	}
+
+	FragColor = vec4(color, transparency); 
 }
