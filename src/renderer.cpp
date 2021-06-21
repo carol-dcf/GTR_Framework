@@ -716,8 +716,8 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 	s_ref->setUniform("u_depth_texture", gbuffers_fbo.depth_texture, 3);
 	s_ref->setUniform("u_reflection_texture", reflection_probes[0]->cubemap, 7);
 
-	sh->setUniform("u_camera_eye", camera->eye);
-	sh->setUniform("u_hdr", hdr);
+	s_ref->setUniform("u_camera_eye", camera->eye);
+	s_ref->setUniform("u_hdr", hdr);
 	
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	quad->render(GL_TRIANGLES);
