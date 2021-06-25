@@ -273,7 +273,8 @@ void Application::renderDebugGUI(void)
 		ImGui::Checkbox("Dithering", &renderer->dithering);
 		ImGui::Checkbox("Show Probes", &renderer->show_probe);
 		ImGui::Checkbox("Show Ref Probe", &renderer->show_ref_probes);
-		ImGui::SliderFloat("Irr normal distance", &renderer->irr_normal_distance, 0.0, 20.0);
+		ImGui::Checkbox("Show Volumetric", &renderer->show_volumetric);
+		//ImGui::SliderFloat("Irr normal distance", &renderer->irr_normal_distance, 0.0, 20.0);
 	}
 
 	//add info to the debug panel about the camera

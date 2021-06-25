@@ -60,6 +60,7 @@ GTR::Renderer::Renderer()
 	reflections_fbo.create(64, 64, 1, GL_RGB, GL_FLOAT);
 
 	show_ref_probes = false;
+	show_volumetric = true;
 }
 
 void Renderer::initReflectionProbe(Scene* scene) {
@@ -457,12 +458,16 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		renderSkyBox(scene->environment, camera);
-		renderSkyBox(scene->environment, camera);
 
 		if (render_mode == SHOW_IRRADIANCE) showIrradiance(scene, camera);
-		else illuminationDeferred(scene, camera);
-
-		showVolumetric(scene, camera);
+		else { 
+			// RENDER LIGHTS
+			illuminationDeferred(scene, camera); 
+			// REFLECTION
+			showReflection(camera);
+			// VOLUMETRIC
+			if(show_volumetric) showVolumetric(scene, camera);
+		}
 
 		if (show_probe) {
 			sProbe probe;
@@ -508,7 +513,7 @@ void Renderer::showVolumetric(GTR::Scene* scene, Camera* camera) {
 	s->enable();
 	s->setUniform("u_depth_texture", gbuffers_fbo.depth_texture, 3);
 	s->setUniform("u_inverse_viewprojection", inv_vp);
-	s->setUniform("u_viewprojection", camera->viewprojection_matrix);
+	s->setUniform("u_near", camera->near_plane);
 	LightEntity* light;
 	for (int i = 0; i < scene->l_entities.size(); ++i) {
 		if (scene->l_entities[i]->name == "moonlight") {
@@ -516,6 +521,8 @@ void Renderer::showVolumetric(GTR::Scene* scene, Camera* camera) {
 			break;
 		}
 	}
+	Matrix44 shadow_proj = light->light_camera->viewprojection_matrix;
+	s->setUniform("u_viewprojection", shadow_proj);
 	
 	Texture* shadowmap = light->shadow_buffer;
 	s->setTexture("shadowmap", shadowmap, 5);
@@ -613,10 +620,7 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 	quad->render(GL_TRIANGLES);
 	s->disable();
 
-	glEnable(GL_BLEND);
-
 	Mesh* sphere = Mesh::Get("data/meshes/sphere.obj", false);
-
 	Shader* sh = Shader::Get("deferred_ws");
 
 	sh->enable();
@@ -628,7 +632,7 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 	sh->setUniform("u_ao_texture", ssao_blur.color_textures[0], 4);
 	sh->setUniform("u_probes_texture", probes_texture, 6);
 
-	s->setUniform("u_first_pass", false);
+	sh->setUniform("u_first_pass", false);
 
 	//pass the inverse projection of the camera to reconstruct world pos.
 	sh->setUniform("u_inverse_viewprojection", inv_vp);
@@ -642,12 +646,12 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 	sh->setUniform("u_hdr", hdr);
 
 	glEnable(GL_CULL_FACE);
+	glEnable(GL_DEPTH_TEST);
 	glFrontFace(GL_CW);
-
+	glEnable(GL_BLEND);
 	glBlendFunc(GL_ONE, GL_ONE);
 
 	std::vector<LightEntity*> directionals;
-
 	
 	for (int i = 0; i < scene->l_entities.size(); ++i) {
 		LightEntity* lent = scene->l_entities[i];
@@ -667,10 +671,12 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 			directionals.push_back(lent);
 		}
 	}
+	
 	// DIRECTIONAL
 	glDisable(GL_CULL_FACE);
 	glFrontFace(GL_CCW);
 	glDisable(GL_DEPTH_TEST);
+	
 	s->enable();
 
 	for (int i = 0; i < directionals.size(); ++i)
@@ -703,8 +709,18 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 	directionals.clear();
 	
 	glFrontFace(GL_CCW);
+	
+}
 
-	// REFLECTION
+void Renderer::showReflection(Camera* camera) 
+{
+	float w = Application::instance->window_width;
+	float h = Application::instance->window_height;
+	Matrix44 inv_vp = camera->viewprojection_matrix;
+	inv_vp.inverse();
+
+	Mesh* quad = Mesh::getQuad();
+
 	Shader* s_ref = Shader::Get("reflection_def");
 	s_ref->enable();
 	s_ref->setUniform("u_inverse_viewprojection", inv_vp);
@@ -718,7 +734,7 @@ void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
 
 	s_ref->setUniform("u_camera_eye", camera->eye);
 	s_ref->setUniform("u_hdr", hdr);
-	
+
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	quad->render(GL_TRIANGLES);
 	s_ref->disable();
@@ -836,7 +852,7 @@ void Renderer::renderMeshDeferred(const Matrix44 model, Mesh* mesh, GTR::Materia
 	if (!normal_texture) read_normal = false;
 
 	mat_properties_texture = material->metallic_roughness_texture.texture;
-	if (mat_properties_texture == NULL) mat_properties_texture = Texture::getWhiteTexture(); //a 1x1 white texture
+	if (mat_properties_texture == NULL) mat_properties_texture = Texture::getBlackTexture(); //a 1x1 white texture
 	
 	bool changed = false;
 	if (!dithering && material->alpha_mode == GTR::eAlphaMode::BLEND) return;

@@ -113,11 +113,12 @@ namespace GTR {
 		bool dithering;
 		bool show_probe;
 		bool show_ref_probes;
+		bool show_volumetric;
 		float irr_normal_distance;
 
 		FBO irr_fbo;
 		Texture* probes_texture;
-		Vector3 dim = Vector3(8, 6, 12);
+		Vector3 dim = Vector3(2, 2, 2); //Vector3(8, 6, 12);
 		Vector3 start_pos = Vector3(-200, 10, -350);  //(-55, 10, -170)
 		Vector3 end_pos = Vector3(550, 250, 450);	  //(180, 150, 80)	
 		Vector3 delta;
@@ -162,6 +163,8 @@ namespace GTR {
 
 		//renders several elements of the scene
 		void illuminationDeferred(GTR::Scene* scene, Camera* camera);
+
+		void showReflection(Camera* camera);
 
 		void generateSSAO(GTR::Scene* scene, Camera* camera);
 		std::vector<Vector3> generateSpherePoints(int num, float radius, bool hemi);

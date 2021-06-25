@@ -1376,13 +1376,14 @@ in vec2 v_uv;
 
 uniform sampler2D u_depth_texture;
 uniform mat4 u_inverse_viewprojection;
-uniform mat4 viewproj;
+uniform mat4 u_viewprojection;
 uniform float u_bias;
 uniform sampler2D shadowmap;
 uniform vec3 u_light_color;
 uniform vec2 u_iRes;
 
 uniform vec3 u_camera_eye;
+uniform float u_near;
 
 #include "shadows"
 
@@ -1397,38 +1398,38 @@ void main()
 
 	//reconstruct world position from depth and inv. viewproj
 	float depth = texture( u_depth_texture, uv ).x;
-	if (depth >= 1.0) discard;
+	//if (depth >= 1.0) discard;
 	vec4 screen_pos = vec4(uv.x*2.0-1.0, uv.y*2.0-1.0, depth*2.0-1.0, 1.0);
 	vec4 proj_worldpos = u_inverse_viewprojection * screen_pos;
 	vec3 worldpos = proj_worldpos.xyz / proj_worldpos.w;
 
-	vec3 color = vec3(0.0);
+	vec3 color = vec3(0.0, 0.0, 0.0);
 
 	vec3 ray_dir = worldpos - u_camera_eye;
 	float dist = length(ray_dir);
 	ray_dir /= dist;
+	dist = clamp(dist, 0.0, 200.0);
 	float step_dist = dist / float(SAMPLES);
-	float air_density = 0.01;
+	float air_density = 0.001;
 
-	vec3 current_pos = u_camera_eye;
+	vec3 current_pos = u_camera_eye + vec3(u_near);
 	vec3 ray_offset = ray_dir * step_dist;
-	float transparency = 1.0;
+	float transparency = 0.8;
 	float pixel_transparency = air_density * step_dist;
 	float shadow_factor;
-
+		
 	for ( int i = 0; i < SAMPLES; ++i)
 	{
-
 		transparency -= pixel_transparency;
 
-		shadow_factor = computeShadowFactor(viewproj, current_pos, u_bias, shadowmap);
+		shadow_factor = computeShadowFactor(u_viewprojection, current_pos, u_bias, shadowmap);
 		color += shadow_factor * u_light_color * pixel_transparency;
 		//too dense, nothing can be seen behind
 		if( transparency < 0.001 )
 			break;
 
-		current_pos.xyz += ray_offset;	
+		current_pos.xyz += ray_offset;
 	}
 
-	FragColor = vec4(color, transparency); 
+	FragColor = vec4(color, transparency);
 }
