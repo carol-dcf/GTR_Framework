@@ -28,6 +28,8 @@ reflection_def quad.vs reflection_def.fs
 volumetric quad.vs volumetric.fs
 // DECALS
 decals basic.vs decals.fs
+// POST PROCESSING
+dof quad.vs dof.fs
 // OTHERS
 normal basic.vs normal.fs
 shadow basic.vs shadow.fs
@@ -1491,4 +1493,68 @@ void main()
 	NormalColor = normal;
 	ExtraColor = extra;
 
+}
+
+
+\dof.fs
+
+#version 330 core
+
+#define Pi 6.28318530718
+
+// GAUSSIAN BLUR SETTINGS {{{
+#define directions 16.0 // BLUR DIRECTIONS (Default 16.0 - More is better but slower)
+#define quality 3.0 // BLUR QUALITY (Default 4.0 - More is better but slower)
+// GAUSSIAN BLUR SETTINGS }}}
+
+uniform vec2 u_iRes;
+uniform sampler2D u_texture;
+uniform float u_size;
+uniform float u_aperture;
+uniform float u_focal_length;
+uniform float u_plane;
+
+uniform sampler2D u_depth_texture;
+uniform vec2 u_camera_nearfar;
+
+out vec4 FragColor;
+
+vec4 blur_texture(sampler2D texture_blur, vec2 iRes, float size)
+{
+	vec2 radius = size * iRes.xy;
+  
+  // Normalized pixel coordinates (from 0 to 1)
+  vec2 uv = gl_FragCoord.xy * iRes.xy;
+  // Pixel colour
+  vec4 color = texture( texture_blur, uv);
+  
+  // Blur calculations
+  for( float d=0.0; d<Pi; d+=Pi/directions)
+  {
+		for(float i=1.0/quality; i<=1.0; i+=1.0/quality)
+      {
+				color += texture( texture_blur, uv+vec2(cos(d),sin(d))*radius*i);		
+      }
+  }
+  
+  // Output to screen
+  color /= quality * directions + 10.0;
+  return color;
+}
+
+void main()
+{
+		// Normalized pixel coordinates (from 0 to 1)
+  	vec2 uv = gl_FragCoord.xy * u_iRes;
+
+		float z = texture( u_depth_texture, uv ).x;
+
+		float n = u_camera_nearfar.x;
+		float f = u_camera_nearfar.y;
+		float depth = n * (z + 1.0) / (f + n - z * (f - n));
+
+		float CoC = abs( u_aperture * (u_focal_length * (u_plane - depth)) / (depth * (u_plane - u_focal_length)) );
+		vec4 blurred_color = blur_texture(u_texture, u_iRes, CoC);
+    
+    FragColor = blurred_color;
 }

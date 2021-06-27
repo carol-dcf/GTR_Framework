@@ -114,6 +114,7 @@ namespace GTR {
 		bool show_probe;
 		bool show_ref_probes;
 		bool show_volumetric;
+		bool show_dof;
 		float irr_normal_distance;
 
 		FBO irr_fbo;
@@ -124,6 +125,9 @@ namespace GTR {
 		Vector3 delta;
 
 		FBO decals_fbo;
+		FBO dof_fbo;
+
+		float focus_plane;
 
 		std::vector<Vector3> random_points;
 
@@ -157,6 +161,7 @@ namespace GTR {
 		void renderToFBODeferred(GTR::Scene* scene, Camera* camera);
 		void showVolumetric(GTR::Scene* scene, Camera* camera);
 		void showIrradiance(GTR::Scene* scene, Camera* camera);
+		void showDoF(GTR::Scene* scene, Camera* camera);
 		void showReflection(Camera* camera);
 		void renderMeshDeferred(const Matrix44 model, Mesh* mesh, GTR::Material* material, Camera* camera);
 

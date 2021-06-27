@@ -64,6 +64,12 @@ GTR::Renderer::Renderer()
 
 	decals_fbo = FBO();
 	decals_fbo.create(w, h, 3, GL_RGBA, GL_UNSIGNED_BYTE, true);
+
+	dof_fbo = FBO();
+	dof_fbo.create(w, h, 3, GL_RGBA, GL_UNSIGNED_BYTE, true);
+
+	show_dof = true;
+	focus_plane = 0.5;
 }
 
 void Renderer::initReflectionProbe(Scene* scene) {
@@ -484,6 +490,8 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 			showReflection(camera);
 			// VOLUMETRIC
 			if(show_volumetric) showVolumetric(scene, camera);
+			// DOF
+			if (show_dof) showDoF(scene, camera);
 		}
 
 		if (show_probe) {
@@ -592,6 +600,36 @@ void Renderer::showIrradiance(GTR::Scene* scene, Camera* camera)
 	s->disable();
 
 	glEnable(GL_BLEND);
+}
+
+void GTR::Renderer::showDoF(GTR::Scene* scene, Camera* camera)
+{
+	float w = Application::instance->window_width;
+	float h = Application::instance->window_height;
+
+	dof_fbo.bind();
+
+	glDisable(GL_DEPTH_TEST);
+	glDisable(GL_CULL_FACE);
+	glDisable(GL_BLEND);
+	Mesh* quad = Mesh::getQuad();
+	Shader* shader = Shader::Get("dof");
+	shader->enable();
+	shader->setTexture("u_texture", illumination_fbo.color_textures[0], 0);
+	shader->setUniform("u_iRes", Vector2(1.0 / (float)w, 1.0 / (float)h));
+	shader->setUniform("u_size", (float)20.0);
+	shader->setUniform("u_aperture", (float)camera->fov);
+	float f = 1.0f / tan(camera->fov * float(DEG2RAD) * 0.5f);
+	shader->setUniform("u_focal_length", f);
+	shader->setUniform("u_plane", (float)focus_plane);
+	shader->setUniform("u_depth_texture", gbuffers_fbo.depth_texture, 1);
+	shader->setUniform("u_camera_nearfar", Vector2(camera->near_plane, camera->far_plane));
+	quad->render(GL_TRIANGLES);
+	shader->disable();
+
+	dof_fbo.unbind();
+
+	dof_fbo.color_textures[0]->copyTo(illumination_fbo.color_textures[0]);
 }
 
 void Renderer::illuminationDeferred(GTR::Scene* scene, Camera* camera) {
