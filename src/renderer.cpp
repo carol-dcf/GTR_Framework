@@ -1322,6 +1322,7 @@ void Renderer::renderMeshWithMaterial(const Matrix44 model, Mesh* mesh, GTR::Mat
 void GTR::Renderer::resize(int width, int height)
 {
 	illumination_fbo.create(width, height, 3, GL_RGB, GL_FLOAT, false);
+	dof_fbo.create(width, height, 3, GL_RGB, GL_FLOAT, false);
 }
 
 void GTR::Renderer::getShadows(const Matrix44 model, Mesh* mesh, GTR::Material* material, Camera* camera)
