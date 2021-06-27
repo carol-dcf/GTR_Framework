@@ -61,6 +61,9 @@ GTR::Renderer::Renderer()
 
 	show_ref_probes = false;
 	show_volumetric = true;
+
+	decals_fbo = FBO();
+	decals_fbo.create(w, h, 3, GL_RGBA, GL_UNSIGNED_BYTE, true);
 }
 
 void Renderer::initReflectionProbe(Scene* scene) {
@@ -423,6 +426,20 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 	renderScene(scene, camera);
 
 	gbuffers_fbo.unbind();
+
+	// PING PONG PARA DECALS
+	gbuffers_fbo.color_textures[0]->copyTo(decals_fbo.color_textures[0]);
+	gbuffers_fbo.color_textures[1]->copyTo(decals_fbo.color_textures[1]);
+	gbuffers_fbo.color_textures[2]->copyTo(decals_fbo.color_textures[2]);
+
+	decals_fbo.bind();
+	gbuffers_fbo.depth_texture->copyTo(NULL);
+	renderDecals(scene, camera);
+	decals_fbo.unbind();
+
+	decals_fbo.color_textures[0]->copyTo(gbuffers_fbo.color_textures[0]);
+	decals_fbo.color_textures[1]->copyTo(gbuffers_fbo.color_textures[1]);
+	decals_fbo.color_textures[2]->copyTo(gbuffers_fbo.color_textures[2]);
 
 	Shader* shader = Shader::Get("depth");
 	shader->enable();
@@ -888,6 +905,54 @@ void Renderer::renderMeshDeferred(const Matrix44 model, Mesh* mesh, GTR::Materia
 	glDisable(GL_BLEND);
 
 	if (changed) dithering = true;
+}
+
+void GTR::Renderer::renderDecals(GTR::Scene* scene, Camera* camera)
+{
+	static Mesh* mesh = NULL;
+	if (mesh == NULL)
+	{
+		mesh = new Mesh();
+		mesh->createCube();
+	}
+
+	Shader* shader = Shader::Get("decals");
+	shader->enable();
+
+	Matrix44 inv_vp = camera->viewprojection_matrix;
+	inv_vp.inverse();
+
+	shader->setUniform("u_inverse_viewprojection", inv_vp);
+	shader->setUniform("u_viewprojection", camera->viewprojection_matrix);
+
+	shader->setUniform("u_color_texture", gbuffers_fbo.color_textures[0], 0);
+	shader->setUniform("u_normal_texture", gbuffers_fbo.color_textures[1], 1);
+	shader->setUniform("u_extra_texture", gbuffers_fbo.color_textures[2], 1);
+	shader->setUniform("u_depth_texture", gbuffers_fbo.depth_texture, 3);
+
+	shader->setUniform("u_iRes", Vector2(1.0 / (float)gbuffers_fbo.color_textures[0]->width, 1.0 / (float)gbuffers_fbo.color_textures[0]->height));
+
+	glDisable(GL_DEPTH_TEST);
+	glDisable(GL_BLEND);
+
+	for (int i = 0; i < scene->entities.size(); ++i) 
+	{
+		BaseEntity* ent = scene->entities[i];
+		if (ent->entity_type != eEntityType::DECAL)
+			continue;
+		DecalEntity* decal = (DecalEntity*)ent;
+
+		Matrix44 imodel = decal->model;
+		imodel.inverse();
+
+		shader->setUniform("u_model", decal->model);
+		shader->setUniform("u_iModel", imodel);
+		shader->setTexture("u_decal_texture", decal->albedo, 8);
+
+		mesh->render(GL_TRIANGLES);
+		//mesh->renderBounding(decal->model);
+	}
+
 }
 
 void Renderer::renderScene(GTR::Scene* scene, Camera* camera)

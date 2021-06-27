@@ -19,7 +19,7 @@ namespace GTR {
 		LIGHT = 2,
 		CAMERA = 3,
 		REFLECTION_PROBE = 4,
-		DECALL = 5
+		DECAL = 5
 	};
 
 	enum eLightType {
@@ -81,6 +81,16 @@ namespace GTR {
 		virtual void renderInMenu();
 		virtual void configure(cJSON* json);
 		void setUniforms(Shader* shader);
+	};
+
+
+	class DecalEntity : public GTR::BaseEntity
+	{
+	public:
+		Texture* albedo;
+
+		DecalEntity();
+		virtual void configure(cJSON* json);
 	};
 
 

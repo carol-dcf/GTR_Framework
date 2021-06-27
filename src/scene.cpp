@@ -155,8 +155,10 @@ GTR::BaseEntity* GTR::Scene::createEntity(std::string type)
 {
 	if (type == "PREFAB")
 		return new GTR::PrefabEntity();
-	if (type == "LIGHT")
+	else if (type == "LIGHT")
 		return new GTR::LightEntity();
+	else if (type == "DECAL")
+		return new GTR::DecalEntity();
 	return NULL;
 }
 
@@ -353,4 +355,17 @@ void GTR::LightEntity::setUniforms(Shader* shader)
 void GTR::Scene::addEntityLight(LightEntity* entity)
 {
 	l_entities.push_back(entity); entity->scene = this;
+}
+
+GTR::DecalEntity::DecalEntity()
+{
+	entity_type = DECAL;
+	albedo = NULL;
+}
+
+void GTR::DecalEntity::configure(cJSON* json)
+{
+	std::string filename = readJSONString(json, "albedo", "");
+	if (filename.size())
+		albedo = Texture::Get( (std::string("data/") +  filename).c_str() );
 }

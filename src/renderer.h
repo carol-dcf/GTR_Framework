@@ -123,6 +123,8 @@ namespace GTR {
 		Vector3 end_pos = Vector3(550, 250, 450);	  //(180, 150, 80)	
 		Vector3 delta;
 
+		FBO decals_fbo;
+
 		std::vector<Vector3> random_points;
 
 		std::vector<RenderCall> renderCalls;
@@ -139,32 +141,29 @@ namespace GTR {
 
 		void renderToFBO(GTR::Scene* scene, Camera* camera);
 
-		void initReflectionProbe(Scene* scene);
-
-		void captureCubemaps(Scene* scene);
-
 		void renderSkyBox(Texture* environment, Camera* camera);
 
-		void renderProbe(Vector3 pos, float size, float* coeffs);
-
-		void renderReflectionProbe(Vector3 pos, Texture* cubemap, float size);
-
-		void updateIrradianceCache(Scene* scene);
-
+		// PROBES (IRRADIANCE AND REFLECTION)
 		void defineGrid(Scene* scene);
+		void initReflectionProbe(Scene* scene);
 		void computeProbeCoefficients(Scene* scene);
+		void captureCubemaps(Scene* scene);
 		void uploadProbes();
+		void updateIrradianceCache(Scene* scene);
+		void renderProbe(Vector3 pos, float size, float* coeffs);
+		void renderReflectionProbe(Vector3 pos, Texture* cubemap, float size);
 
 		void renderToFBOForward(GTR::Scene* scene, Camera* camera);
 		void renderToFBODeferred(GTR::Scene* scene, Camera* camera);
 		void showVolumetric(GTR::Scene* scene, Camera* camera);
 		void showIrradiance(GTR::Scene* scene, Camera* camera);
+		void showReflection(Camera* camera);
 		void renderMeshDeferred(const Matrix44 model, Mesh* mesh, GTR::Material* material, Camera* camera);
+
+		void renderDecals(GTR::Scene* scene, Camera* camera);
 
 		//renders several elements of the scene
 		void illuminationDeferred(GTR::Scene* scene, Camera* camera);
-
-		void showReflection(Camera* camera);
 
 		void generateSSAO(GTR::Scene* scene, Camera* camera);
 		std::vector<Vector3> generateSpherePoints(int num, float radius, bool hemi);
