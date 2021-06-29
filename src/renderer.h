@@ -22,7 +22,8 @@ namespace GTR {
 		SHOW_GBUFFERS,
 		SHOW_DEFERRED,
 		SHOW_SSAO,
-		SHOW_IRRADIANCE
+		SHOW_IRRADIANCE,
+		SHOW_DOWNSAMPLING
 	};
 
 	enum ePipelineMode {
@@ -115,6 +116,7 @@ namespace GTR {
 		bool show_ref_probes;
 		bool show_volumetric;
 		bool show_dof;
+		bool show_glow;
 		float irr_normal_distance;
 
 		FBO irr_fbo;
@@ -126,9 +128,13 @@ namespace GTR {
 
 		FBO decals_fbo;
 		FBO dof_fbo;
+		FBO downsample_fbo;
+		FBO upsample_fbo;
 
 		float focus_plane;
 		float aperture;
+
+		float glow_factor;
 
 		std::vector<Vector3> random_points;
 
@@ -160,6 +166,7 @@ namespace GTR {
 
 		void renderToFBOForward(GTR::Scene* scene, Camera* camera);
 		void renderToFBODeferred(GTR::Scene* scene, Camera* camera);
+		void showGlow(GTR::Scene* scene, Camera* camera);
 		void showVolumetric(GTR::Scene* scene, Camera* camera);
 		void showIrradiance(GTR::Scene* scene, Camera* camera);
 		void showDoF(GTR::Scene* scene, Camera* camera);

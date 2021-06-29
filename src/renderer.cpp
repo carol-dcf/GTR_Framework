@@ -70,7 +70,14 @@ GTR::Renderer::Renderer()
 
 	show_dof = true;
 	focus_plane = 0.5;
-	aperture = 20.0;
+	aperture = 5.0;
+
+	downsample_fbo = FBO();
+	downsample_fbo.create(w, h, 3, GL_RGBA, GL_FLOAT, true);
+	upsample_fbo = FBO();
+	upsample_fbo.create(w, h, 3, GL_RGBA, GL_FLOAT, true);
+	show_glow = true;
+	glow_factor = 2.0;
 }
 
 void Renderer::initReflectionProbe(Scene* scene) {
@@ -493,6 +500,8 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 			if(show_volumetric) showVolumetric(scene, camera);
 			// DOF
 			if (show_dof) showDoF(scene, camera);
+			// GLOW
+			if (show_glow) showGlow(scene, camera);
 		}
 
 		if (show_probe) {
@@ -517,12 +526,108 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 		if (hdr) s_final = Shader::Get("final");
 		glViewport(0.0f, 0.0f, w, h);
 
-		illumination_fbo.color_textures[0]->toViewport(s_final);
-		//probes_texture->toViewport();
+		if (render_mode == SHOW_DOWNSAMPLING) {
+			show_glow = true;
+
+			glDisable(GL_BLEND);
+			glViewport(0.0f, h / 2, w / 2, h / 2);
+			illumination_fbo.color_textures[0]->toViewport(s_final);
+			glViewport(w / 2, h / 2, w / 2, h / 2);
+			downsample_fbo.color_textures[0]->toViewport(s_final);
+			glViewport(0.0f, 0.0f, w / 2, h / 2);
+			downsample_fbo.color_textures[1]->toViewport(s_final);
+			glViewport(w / 2, 0.0f, w / 2, h / 2);
+			downsample_fbo.color_textures[2]->toViewport(s_final);
+		}
+		//else illumination_fbo.color_textures[0]->toViewport(s_final);
+		else upsample_fbo.color_textures[2]->toViewport(s_final);
 	}
 	shader->disable();
 	
 	glDisable(GL_BLEND);
+
+}
+
+void Renderer::showGlow(GTR::Scene* scene, Camera* camera)
+{
+	float w = Application::instance->window_width;
+	float h = Application::instance->window_height;
+
+	// call downsample shader
+	Mesh* quad = Mesh::getQuad();
+	Shader* s = Shader::Get("blur_down");
+
+	glDisable(GL_DEPTH_TEST);
+	glDisable(GL_CULL_FACE);
+	glDisable(GL_BLEND);
+
+	s->enable();
+	s->setUniform("u_texture", illumination_fbo.color_textures[0], 0);
+	s->setUniform("u_iRes", Vector2(1.0 / (float)w, 1.0 / (float)h));
+	s->setUniform("u_base", (float)glow_factor);
+
+	downsample_fbo.bind();
+	quad->render(GL_TRIANGLES);
+	downsample_fbo.unbind();
+
+	s->disable();
+
+	//call upsampling shader
+	s = Shader::Get("blur_up");
+	s->enable();
+
+	// first upsampling
+	upsample_fbo.bind();
+	s->setUniform("u_texture", downsample_fbo.color_textures[2], 0);
+	s->setUniform("u_index", (int)0);
+
+	glDisable(GL_BLEND);
+	quad->render(GL_TRIANGLES);
+
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_ONE, GL_ONE);
+
+	Shader* sh = Shader::getDefaultShader("screen");
+	sh->enable();
+	sh->setUniform("u_texture", downsample_fbo.color_textures[1], 0);
+	sh->setUniform("u_index", (int)0);
+	quad->render(GL_TRIANGLES);
+
+	// second upsampling
+	s->enable();
+	s->setUniform("u_texture", upsample_fbo.color_textures[0], 0);
+	s->setUniform("u_index", (int)1);
+
+	glDisable(GL_BLEND);
+	quad->render(GL_TRIANGLES);
+
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_ONE, GL_ONE);
+
+	sh->enable();
+	sh->setUniform("u_texture", downsample_fbo.color_textures[0], 0);
+	sh->setUniform("u_index", (int)1);
+	quad->render(GL_TRIANGLES);
+
+
+	// third upsampling
+	s->enable();
+	s->setUniform("u_texture", upsample_fbo.color_textures[1], 0);
+	s->setUniform("u_index", (int)2);
+
+	glDisable(GL_BLEND);
+	quad->render(GL_TRIANGLES);
+
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_ONE, GL_ONE);
+
+	sh->enable();
+	sh->setUniform("u_texture", illumination_fbo.color_textures[0], 0);
+	sh->setUniform("u_index", (int)2);
+	quad->render(GL_TRIANGLES);
+
+	upsample_fbo.unbind();
+	
 
 }
 

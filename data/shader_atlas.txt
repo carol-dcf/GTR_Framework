@@ -13,7 +13,7 @@ multi basic.vs multi.fs
 add_ambient quad.vs add_ambient.fs
 // SSAO
 ssao quad.vs ssao.fs
-blur quad.vs blur.fs
+blur quad.vs blur_ssao.fs
 // HDR
 final quad.vs final.fs 
 // IRRADIANCE
@@ -30,6 +30,8 @@ volumetric quad.vs volumetric.fs
 decals basic.vs decals.fs
 // POST PROCESSING
 dof quad.vs dof.fs
+blur_down quad.vs blur_down.fs
+blur_up quad.vs blur_up.fs
 // OTHERS
 normal basic.vs normal.fs
 shadow basic.vs shadow.fs
@@ -37,6 +39,37 @@ uvs basic.vs uvs.fs
 occlusion basic.vs occlusion.fs
 fx quad.vs fx.fs
 
+
+\blurtex
+#define Pi 6.28318530718
+
+// GAUSSIAN BLUR SETTINGS {{{
+#define directions 16.0 // BLUR DIRECTIONS (Default 16.0 - More is better but slower)
+#define quality 3.0 // BLUR QUALITY (Default 4.0 - More is better but slower)
+// GAUSSIAN BLUR SETTINGS }}}
+
+vec4 blur_texture(sampler2D texture_blur, vec2 iRes, float size)
+{
+	vec2 radius = size * iRes.xy;
+  
+  // Normalized pixel coordinates (from 0 to 1)
+  vec2 uv = gl_FragCoord.xy * iRes.xy;
+  // Pixel colour
+  vec4 color = texture( texture_blur, uv);
+  
+  // Blur calculations
+  for( float d=0.0; d<Pi; d+=Pi/directions)
+  {
+		for(float i=1.0/quality; i<=1.0; i+=1.0/quality)
+      {
+				color += texture( texture_blur, uv+vec2(cos(d),sin(d))*radius*i);		
+      }
+  }
+  
+  // Output to screen
+  color /= quality * directions + 10.0;
+  return color;
+}
 
 \shadows
 float computeShadowFactor(mat4 viewproj, vec3 worldpos, float bias, sampler2D shadowmap){
@@ -1119,7 +1152,7 @@ void main()
 	
 }
 
-\blur.fs
+\blur_ssao.fs
 
 #version 330 core
 
@@ -1500,12 +1533,7 @@ void main()
 
 #version 330 core
 
-#define Pi 6.28318530718
-
-// GAUSSIAN BLUR SETTINGS {{{
-#define directions 16.0 // BLUR DIRECTIONS (Default 16.0 - More is better but slower)
-#define quality 3.0 // BLUR QUALITY (Default 4.0 - More is better but slower)
-// GAUSSIAN BLUR SETTINGS }}}
+#include "blurtex"
 
 uniform vec2 u_iRes;
 uniform sampler2D u_texture;
@@ -1519,43 +1547,81 @@ uniform vec2 u_camera_nearfar;
 
 out vec4 FragColor;
 
-vec4 blur_texture(sampler2D texture_blur, vec2 iRes, float size)
+void main()
 {
-	vec2 radius = size * iRes.xy;
-  
-  // Normalized pixel coordinates (from 0 to 1)
-  vec2 uv = gl_FragCoord.xy * iRes.xy;
-  // Pixel colour
-  vec4 color = texture( texture_blur, uv);
-  
-  // Blur calculations
-  for( float d=0.0; d<Pi; d+=Pi/directions)
-  {
-		for(float i=1.0/quality; i<=1.0; i+=1.0/quality)
-      {
-				color += texture( texture_blur, uv+vec2(cos(d),sin(d))*radius*i);		
-      }
-  }
-  
-  // Output to screen
-  color /= quality * directions + 10.0;
-  return color;
+	// Normalized pixel coordinates (from 0 to 1)
+  	vec2 uv = gl_FragCoord.xy * u_iRes;
+
+	float z = texture( u_depth_texture, uv ).x;
+
+	float n = u_camera_nearfar.x;
+	float f = u_camera_nearfar.y;
+	float depth = n * (z + 1.0) / (f + n - z * (f - n));
+
+	float CoC = abs( u_aperture * (u_focal_length * (u_plane - depth)) / (depth * (u_plane - u_focal_length)) );
+	CoC = clamp(CoC, 0.0, 20.0);
+	vec4 blurred_color = blur_texture(u_texture, u_iRes, CoC);
+    
+    FragColor = blurred_color;
+}
+
+
+\blur_down.fs
+
+#version 330 core
+
+#include "blurtex"
+
+uniform sampler2D u_texture;
+uniform vec2 u_iRes;
+uniform float u_base;
+
+layout(location = 0) out vec4 DownSample1;
+layout(location = 1) out vec4 DownSample2;
+layout(location = 2) out vec4 DownSample3;
+
+void main()
+{
+	vec4 color1 = blur_texture(u_texture, u_iRes, u_base);
+	vec4 color2 = blur_texture(u_texture, u_iRes, u_base * u_base);
+	vec4 color3 = blur_texture(u_texture, u_iRes, u_base * u_base * u_base);
+	
+	DownSample1 = color1;
+	DownSample2 = color2;
+	DownSample3 = color3;
+}
+
+\blur_up.fs
+
+#version 330 core
+
+in vec2 v_uv;
+
+uniform sampler2D u_texture;
+uniform int u_index;
+
+layout(location = 0) out vec4 UpSample1;
+layout(location = 1) out vec4 UpSample2;
+layout(location = 2) out vec4 UpSample3;
+
+vec3 SampleBox (vec2 uv, vec2 texsize, sampler2D tex, float delta) 
+{
+	vec4 o = texsize.xyxy * vec2(-delta, delta).xxyy;
+	vec3 s = texture(tex, uv + o.xy).rgb + texture(tex, uv + o.zy).rgb + texture(tex, uv + o.xw).rgb + texture(tex, uv + o.zw).rgb;
+	return s * 0.25f;
 }
 
 void main()
 {
-		// Normalized pixel coordinates (from 0 to 1)
-  	vec2 uv = gl_FragCoord.xy * u_iRes;
-
-		float z = texture( u_depth_texture, uv ).x;
-
-		float n = u_camera_nearfar.x;
-		float f = u_camera_nearfar.y;
-		float depth = n * (z + 1.0) / (f + n - z * (f - n));
-
-		float CoC = abs( u_aperture * (u_focal_length * (u_plane - depth)) / (depth * (u_plane - u_focal_length)) );
-		CoC = clamp(CoC, 0.0, 20.0);
-		vec4 blurred_color = blur_texture(u_texture, u_iRes, CoC);
-    
-    FragColor = blurred_color;
+	vec2 textureSize2d = textureSize(u_texture,0);
+    float texelSizeX = 1.0 / float(textureSize2d.x);
+	float texelSizeY = 1.0 / float(textureSize2d.y);
+	
+	vec3 color = SampleBox( v_uv, vec2(texelSizeX, texelSizeY), u_texture, 0.5 );
+	
+	if(u_index == 0) UpSample1 = vec4(color, 1.0);
+	if(u_index == 1) UpSample2 = vec4(color, 1.0);
+	if(u_index == 2) UpSample3 = vec4(color, 1.0);
 }
+
+

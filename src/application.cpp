@@ -261,8 +261,8 @@ void Application::renderDebugGUI(void)
 
 	// Render Mode
 	changed = false;
-	changed |= ImGui::Combo("Render Mode", (int*)&renderer->render_mode, "DEFAULT\0SHOW_TEXTURE\0SHOW_NORMAL\0SHOW_AO\0SHOW_UVS\0SHOW_MULTI\0SHOW_GBUFFERS\0SHOW_DEFERRED\0SHOW_SSAO\0SHOW_IRRADIANCE", 11);
-	if (changed && (renderer->render_mode == GTR::eRenderMode::SHOW_DEFERRED || renderer->render_mode == GTR::eRenderMode::SHOW_GBUFFERS || renderer->render_mode == GTR::eRenderMode::SHOW_SSAO || renderer->render_mode == GTR::eRenderMode::SHOW_IRRADIANCE)) {
+	changed |= ImGui::Combo("Render Mode", (int*)&renderer->render_mode, "DEFAULT\0SHOW_TEXTURE\0SHOW_NORMAL\0SHOW_AO\0SHOW_UVS\0SHOW_MULTI\0SHOW_GBUFFERS\0SHOW_DEFERRED\0SHOW_SSAO\0SHOW_IRRADIANCE\0SHOW_DOWNSAMPLING", 12);
+	if (changed && (renderer->render_mode == GTR::eRenderMode::SHOW_DEFERRED || renderer->render_mode == GTR::eRenderMode::SHOW_GBUFFERS || renderer->render_mode == GTR::eRenderMode::SHOW_SSAO || renderer->render_mode == GTR::eRenderMode::SHOW_IRRADIANCE || renderer->render_mode == GTR::eRenderMode::SHOW_DOWNSAMPLING)) {
 		renderer->pipeline_mode = GTR::ePipelineMode::DEFERRED;
 	}
 	else if (changed) renderer->pipeline_mode = GTR::ePipelineMode::FORWARD;
@@ -275,9 +275,11 @@ void Application::renderDebugGUI(void)
 		ImGui::Checkbox("Show Ref Probe", &renderer->show_ref_probes);
 		ImGui::Checkbox("Show Volumetric", &renderer->show_volumetric);
 		ImGui::Checkbox("Show DoF", &renderer->show_dof);
+		ImGui::Checkbox("Show Glow", &renderer->show_glow);
 		//ImGui::SliderFloat("Irr normal distance", &renderer->irr_normal_distance, 0.0, 20.0);
 		ImGui::SliderFloat("Plane in Focus", &renderer->focus_plane, 0.0, 1.0);
 		ImGui::SliderFloat("Aperture", &renderer->aperture, 1.0, 30.0);
+		ImGui::SliderFloat("Glow Factor", &renderer->glow_factor, 1.0, 4.0);
 	}
 
 	//add info to the debug panel about the camera
