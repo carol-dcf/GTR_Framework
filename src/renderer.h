@@ -128,6 +128,7 @@ namespace GTR {
 		FBO dof_fbo;
 
 		float focus_plane;
+		float aperture;
 
 		std::vector<Vector3> random_points;
 

@@ -1554,6 +1554,7 @@ void main()
 		float depth = n * (z + 1.0) / (f + n - z * (f - n));
 
 		float CoC = abs( u_aperture * (u_focal_length * (u_plane - depth)) / (depth * (u_plane - u_focal_length)) );
+		CoC = clamp(CoC, 0.0, 20.0);
 		vec4 blurred_color = blur_texture(u_texture, u_iRes, CoC);
     
     FragColor = blurred_color;

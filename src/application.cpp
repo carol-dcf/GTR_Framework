@@ -277,6 +277,7 @@ void Application::renderDebugGUI(void)
 		ImGui::Checkbox("Show DoF", &renderer->show_dof);
 		//ImGui::SliderFloat("Irr normal distance", &renderer->irr_normal_distance, 0.0, 20.0);
 		ImGui::SliderFloat("Plane in Focus", &renderer->focus_plane, 0.0, 1.0);
+		ImGui::SliderFloat("Aperture", &renderer->aperture, 1.0, 30.0);
 	}
 
 	//add info to the debug panel about the camera

@@ -70,6 +70,7 @@ GTR::Renderer::Renderer()
 
 	show_dof = true;
 	focus_plane = 0.5;
+	aperture = 20.0;
 }
 
 void Renderer::initReflectionProbe(Scene* scene) {
@@ -618,7 +619,7 @@ void GTR::Renderer::showDoF(GTR::Scene* scene, Camera* camera)
 	shader->setTexture("u_texture", illumination_fbo.color_textures[0], 0);
 	shader->setUniform("u_iRes", Vector2(1.0 / (float)w, 1.0 / (float)h));
 	shader->setUniform("u_size", (float)20.0);
-	shader->setUniform("u_aperture", (float)camera->fov);
+	shader->setUniform("u_aperture", (float)aperture);
 	float f = 1.0f / tan(camera->fov * float(DEG2RAD) * 0.5f);
 	shader->setUniform("u_focal_length", f);
 	shader->setUniform("u_plane", (float)focus_plane);
