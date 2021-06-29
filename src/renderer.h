@@ -166,7 +166,9 @@ namespace GTR {
 
 		void renderToFBOForward(GTR::Scene* scene, Camera* camera);
 		void renderToFBODeferred(GTR::Scene* scene, Camera* camera);
-		void showGlow(GTR::Scene* scene, Camera* camera);
+		void showGlow();
+		void downsampleGlow();
+		void upsampleGlow();
 		void showVolumetric(GTR::Scene* scene, Camera* camera);
 		void showIrradiance(GTR::Scene* scene, Camera* camera);
 		void showDoF(GTR::Scene* scene, Camera* camera);

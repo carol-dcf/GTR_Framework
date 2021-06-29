@@ -69,14 +69,14 @@ GTR::Renderer::Renderer()
 	dof_fbo.create(w, h, 3, GL_RGBA, GL_UNSIGNED_BYTE, true);
 
 	show_dof = true;
-	focus_plane = 0.5;
-	aperture = 5.0;
+	focus_plane = 0.05;
+	aperture = 4.0;
 
 	downsample_fbo = FBO();
 	downsample_fbo.create(w, h, 3, GL_RGBA, GL_FLOAT, true);
 	upsample_fbo = FBO();
 	upsample_fbo.create(w, h, 3, GL_RGBA, GL_FLOAT, true);
-	show_glow = true;
+	show_glow = false;
 	glow_factor = 2.0;
 }
 
@@ -501,7 +501,7 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 			// DOF
 			if (show_dof) showDoF(scene, camera);
 			// GLOW
-			if (show_glow) showGlow(scene, camera);
+			if (show_glow) showGlow();
 		}
 
 		if (show_probe) {
@@ -539,8 +539,7 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 			glViewport(w / 2, 0.0f, w / 2, h / 2);
 			downsample_fbo.color_textures[2]->toViewport(s_final);
 		}
-		//else illumination_fbo.color_textures[0]->toViewport(s_final);
-		else upsample_fbo.color_textures[2]->toViewport(s_final);
+		else illumination_fbo.color_textures[0]->toViewport(s_final);
 	}
 	shader->disable();
 	
@@ -548,12 +547,19 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 
 }
 
-void Renderer::showGlow(GTR::Scene* scene, Camera* camera)
+void Renderer::showGlow()
+{
+	downsampleGlow();
+	upsampleGlow();
+
+	upsample_fbo.color_textures[2]->copyTo(illumination_fbo.color_textures[0]);
+}
+
+void Renderer::downsampleGlow()
 {
 	float w = Application::instance->window_width;
 	float h = Application::instance->window_height;
 
-	// call downsample shader
 	Mesh* quad = Mesh::getQuad();
 	Shader* s = Shader::Get("blur_down");
 
@@ -571,64 +577,38 @@ void Renderer::showGlow(GTR::Scene* scene, Camera* camera)
 	downsample_fbo.unbind();
 
 	s->disable();
+}
 
-	//call upsampling shader
-	s = Shader::Get("blur_up");
+void Renderer::upsampleGlow()
+{
+	Shader* s = Shader::Get("blur_up");
+	Mesh* quad = Mesh::getQuad();
 	s->enable();
 
 	// first upsampling
 	upsample_fbo.bind();
+
 	s->setUniform("u_texture", downsample_fbo.color_textures[2], 0);
+	s->setUniform("u_texture_toblend", downsample_fbo.color_textures[1], 1);
 	s->setUniform("u_index", (int)0);
 
-	glDisable(GL_BLEND);
-	quad->render(GL_TRIANGLES);
-
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_ONE, GL_ONE);
-
-	Shader* sh = Shader::getDefaultShader("screen");
-	sh->enable();
-	sh->setUniform("u_texture", downsample_fbo.color_textures[1], 0);
-	sh->setUniform("u_index", (int)0);
 	quad->render(GL_TRIANGLES);
 
 	// second upsampling
-	s->enable();
 	s->setUniform("u_texture", upsample_fbo.color_textures[0], 0);
+	s->setUniform("u_texture_toblend", downsample_fbo.color_textures[0], 1);
 	s->setUniform("u_index", (int)1);
 
-	glDisable(GL_BLEND);
 	quad->render(GL_TRIANGLES);
-
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_ONE, GL_ONE);
-
-	sh->enable();
-	sh->setUniform("u_texture", downsample_fbo.color_textures[0], 0);
-	sh->setUniform("u_index", (int)1);
-	quad->render(GL_TRIANGLES);
-
 
 	// third upsampling
-	s->enable();
 	s->setUniform("u_texture", upsample_fbo.color_textures[1], 0);
+	s->setUniform("u_texture_toblend", illumination_fbo.color_textures[0], 1);
 	s->setUniform("u_index", (int)2);
 
-	glDisable(GL_BLEND);
-	quad->render(GL_TRIANGLES);
-
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_ONE, GL_ONE);
-
-	sh->enable();
-	sh->setUniform("u_texture", illumination_fbo.color_textures[0], 0);
-	sh->setUniform("u_index", (int)2);
 	quad->render(GL_TRIANGLES);
 
 	upsample_fbo.unbind();
-	
-
 }
 
 void Renderer::showVolumetric(GTR::Scene* scene, Camera* camera) {

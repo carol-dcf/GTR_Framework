@@ -1598,6 +1598,7 @@ void main()
 in vec2 v_uv;
 
 uniform sampler2D u_texture;
+uniform sampler2D u_texture_toblend;
 uniform int u_index;
 
 layout(location = 0) out vec4 UpSample1;
@@ -1618,10 +1619,12 @@ void main()
 	float texelSizeY = 1.0 / float(textureSize2d.y);
 	
 	vec3 color = SampleBox( v_uv, vec2(texelSizeX, texelSizeY), u_texture, 0.5 );
+	vec3 color_toblend = texture(u_texture_toblend, v_uv).rgb;
+	
+	color += color_toblend;
 	
 	if(u_index == 0) UpSample1 = vec4(color, 1.0);
 	if(u_index == 1) UpSample2 = vec4(color, 1.0);
 	if(u_index == 2) UpSample3 = vec4(color, 1.0);
 }
-
 
