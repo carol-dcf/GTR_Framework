@@ -118,6 +118,7 @@ namespace GTR {
 		bool show_dof;
 		bool show_glow;
 		bool show_chroma;
+		bool show_lens;
 		float irr_normal_distance;
 
 		FBO irr_fbo;
@@ -168,6 +169,7 @@ namespace GTR {
 
 		void renderToFBOForward(GTR::Scene* scene, Camera* camera);
 		void renderToFBODeferred(GTR::Scene* scene, Camera* camera);
+		void showLensDistortion();
 		void showChromaticAberration();
 		void showGlow();
 		void downsampleGlow();

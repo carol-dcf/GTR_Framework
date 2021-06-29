@@ -277,6 +277,7 @@ void Application::renderDebugGUI(void)
 		ImGui::Checkbox("Show DoF", &renderer->show_dof);
 		ImGui::Checkbox("Show Glow", &renderer->show_glow);
 		ImGui::Checkbox("Show Chromatic Aberration", &renderer->show_chroma);
+		ImGui::Checkbox("Show Lens Distortion", &renderer->show_lens);
 
 		if (renderer->show_dof) {
 			ImGui::SliderFloat("Plane in Focus", &renderer->focus_plane, 0.0, 1.0);

@@ -81,6 +81,8 @@ GTR::Renderer::Renderer()
 
 	show_chroma = false;
 	chroma_amount = 0.002;
+
+	show_lens = false;
 }
 
 void Renderer::initReflectionProbe(Scene* scene) {
@@ -507,6 +509,8 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 			if (show_glow) showGlow();
 			// CHROMATIC ABERRATION
 			if (show_chroma) showChromaticAberration();
+			// LENS DISTORTION
+			if (show_lens) showLensDistortion();
 		}
 
 		if (show_probe) {
@@ -550,6 +554,23 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 	
 	glDisable(GL_BLEND);
 
+}
+
+void Renderer::showLensDistortion()
+{
+	float w = Application::instance->window_width;
+	float h = Application::instance->window_height;
+
+	Mesh* quad = Mesh::getQuad();
+	Shader* s = Shader::Get("lens_dist");
+
+	s->enable();
+	s->setUniform("u_texture", illumination_fbo.color_textures[0], 0);
+	s->setUniform("u_iRes", Vector2(1.0 / (float)w, 1.0 / (float)h));
+
+	glDisable(GL_BLEND);
+	glDisable(GL_DEPTH_TEST);
+	quad->render(GL_TRIANGLES);
 }
 
 void Renderer::showChromaticAberration() 
