@@ -78,6 +78,9 @@ GTR::Renderer::Renderer()
 	upsample_fbo.create(w, h, 3, GL_RGBA, GL_FLOAT, true);
 	show_glow = false;
 	glow_factor = 2.0;
+
+	show_chroma = false;
+	chroma_amount = 0.002;
 }
 
 void Renderer::initReflectionProbe(Scene* scene) {
@@ -502,6 +505,8 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 			if (show_dof) showDoF(scene, camera);
 			// GLOW
 			if (show_glow) showGlow();
+			// CHROMATIC ABERRATION
+			if (show_chroma) showChromaticAberration();
 		}
 
 		if (show_probe) {
@@ -545,6 +550,24 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 	
 	glDisable(GL_BLEND);
 
+}
+
+void Renderer::showChromaticAberration() 
+{
+	float w = Application::instance->window_width;
+	float h = Application::instance->window_height;
+
+	Mesh* quad = Mesh::getQuad();
+	Shader* s = Shader::Get("chromatic");
+
+	s->enable();
+	s->setUniform("u_texture", illumination_fbo.color_textures[0], 0);
+	s->setUniform("u_iRes", Vector2(1.0 / (float)w, 1.0 / (float)h));
+	s->setUniform("u_amount", (float)chroma_amount);
+
+	glDisable(GL_BLEND);
+	glDisable(GL_DEPTH_TEST);
+	quad->render(GL_TRIANGLES);
 }
 
 void Renderer::showGlow()

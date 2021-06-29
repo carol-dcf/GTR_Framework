@@ -117,6 +117,7 @@ namespace GTR {
 		bool show_volumetric;
 		bool show_dof;
 		bool show_glow;
+		bool show_chroma;
 		float irr_normal_distance;
 
 		FBO irr_fbo;
@@ -135,6 +136,7 @@ namespace GTR {
 		float aperture;
 
 		float glow_factor;
+		float chroma_amount;
 
 		std::vector<Vector3> random_points;
 
@@ -166,6 +168,7 @@ namespace GTR {
 
 		void renderToFBOForward(GTR::Scene* scene, Camera* camera);
 		void renderToFBODeferred(GTR::Scene* scene, Camera* camera);
+		void showChromaticAberration();
 		void showGlow();
 		void downsampleGlow();
 		void upsampleGlow();

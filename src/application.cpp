@@ -276,10 +276,14 @@ void Application::renderDebugGUI(void)
 		ImGui::Checkbox("Show Volumetric", &renderer->show_volumetric);
 		ImGui::Checkbox("Show DoF", &renderer->show_dof);
 		ImGui::Checkbox("Show Glow", &renderer->show_glow);
-		//ImGui::SliderFloat("Irr normal distance", &renderer->irr_normal_distance, 0.0, 20.0);
-		ImGui::SliderFloat("Plane in Focus", &renderer->focus_plane, 0.0, 1.0);
-		ImGui::SliderFloat("Aperture", &renderer->aperture, 1.0, 30.0);
-		ImGui::SliderFloat("Glow Factor", &renderer->glow_factor, 1.0, 4.0);
+		ImGui::Checkbox("Show Chromatic Aberration", &renderer->show_chroma);
+
+		if (renderer->show_dof) {
+			ImGui::SliderFloat("Plane in Focus", &renderer->focus_plane, 0.0, 1.0);
+			ImGui::SliderFloat("Aperture", &renderer->aperture, 1.0, 30.0);
+		}
+		if(renderer->show_glow) ImGui::SliderFloat("Glow Factor", &renderer->glow_factor, 1.0, 4.0);
+		if(renderer->show_chroma) ImGui::SliderFloat("Chromatic Factor", &renderer->chroma_amount, -0.15, 0.15);
 	}
 
 	//add info to the debug panel about the camera

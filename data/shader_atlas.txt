@@ -32,6 +32,7 @@ decals basic.vs decals.fs
 dof quad.vs dof.fs
 blur_down quad.vs blur_down.fs
 blur_up quad.vs blur_up.fs
+chromatic quad.vs chromatic_aberration.fs
 // OTHERS
 normal basic.vs normal.fs
 shadow basic.vs shadow.fs
@@ -1628,3 +1629,27 @@ void main()
 	if(u_index == 2) UpSample3 = vec4(color, 1.0);
 }
 
+
+\chromatic_aberration.fs
+
+#version 330 core
+
+uniform sampler2D u_texture;
+uniform vec2 u_iRes;
+uniform float u_amount;
+
+out vec4 FragColor;
+
+void main()
+{
+    vec2 uv = gl_FragCoord.xy * u_iRes.xy;
+	
+    vec3 col;
+    col.r = texture( u_texture, vec2(uv.x+u_amount,uv.y) ).r;
+    col.g = texture( u_texture, uv ).g;
+    col.b = texture( u_texture, vec2(uv.x-u_amount,uv.y) ).b;
+
+	col *= (1.0 - u_amount * 0.5);
+	
+    FragColor = vec4(col,1.0);
+}
