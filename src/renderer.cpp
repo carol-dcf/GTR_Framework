@@ -74,10 +74,14 @@ GTR::Renderer::Renderer()
 
 	downsample_fbo = FBO();
 	downsample_fbo.create(w, h, 3, GL_RGBA, GL_FLOAT, true);
-	upsample_fbo = FBO();
-	upsample_fbo.create(w, h, 3, GL_RGBA, GL_FLOAT, true);
+	upsample_tex1 = new Texture(w, h, GL_RGBA, GL_FLOAT);
+	upsample_tex2 = new Texture(w, h, GL_RGBA, GL_FLOAT);
 	show_glow = false;
 	glow_factor = 2.0;
+
+
+	postpo_fbo = FBO();
+	postpo_fbo.create(w, h, 1, GL_RGBA, GL_FLOAT, true);
 
 	show_chroma = false;
 	chroma_amount = 0.002;
@@ -503,14 +507,6 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 			showReflection(camera);
 			// VOLUMETRIC
 			if(show_volumetric) showVolumetric(scene, camera);
-			// DOF
-			if (show_dof) showDoF(scene, camera);
-			// GLOW
-			if (show_glow) showGlow();
-			// CHROMATIC ABERRATION
-			if (show_chroma) showChromaticAberration();
-			// LENS DISTORTION
-			if (show_lens) showLensDistortion();
 		}
 
 		if (show_probe) {
@@ -528,6 +524,19 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 		}
 		
 		illumination_fbo.unbind();
+
+		// RENDER POSTPROCESSING FX
+		if (render_mode != SHOW_IRRADIANCE)
+		{
+			// DOF
+			if (show_dof) showDoF(scene, camera);
+			// GLOW
+			if (show_glow) showGlow();
+			// CHROMATIC ABERRATION
+			if (show_chroma) showChromaticAberration();
+			// LENS DISTORTION
+			if (show_lens) showLensDistortion();
+		}
 
 		//be sure blending is not active
 		glDisable(GL_BLEND);
@@ -558,6 +567,7 @@ void Renderer::renderToFBODeferred(GTR::Scene* scene, Camera* camera) {
 
 void Renderer::showLensDistortion()
 {
+	postpo_fbo.bind();
 	float w = Application::instance->window_width;
 	float h = Application::instance->window_height;
 
@@ -567,14 +577,19 @@ void Renderer::showLensDistortion()
 	s->enable();
 	s->setUniform("u_texture", illumination_fbo.color_textures[0], 0);
 	s->setUniform("u_iRes", Vector2(1.0 / (float)w, 1.0 / (float)h));
+	s->setUniform("u_power", lens_power);
 
 	glDisable(GL_BLEND);
 	glDisable(GL_DEPTH_TEST);
 	quad->render(GL_TRIANGLES);
+	postpo_fbo.unbind();
+
+	postpo_fbo.color_textures[0]->copyTo(illumination_fbo.color_textures[0]);
 }
 
 void Renderer::showChromaticAberration() 
 {
+	postpo_fbo.bind();
 	float w = Application::instance->window_width;
 	float h = Application::instance->window_height;
 
@@ -589,6 +604,9 @@ void Renderer::showChromaticAberration()
 	glDisable(GL_BLEND);
 	glDisable(GL_DEPTH_TEST);
 	quad->render(GL_TRIANGLES);
+	postpo_fbo.unbind();
+
+	postpo_fbo.color_textures[0]->copyTo(illumination_fbo.color_textures[0]);
 }
 
 void Renderer::showGlow()
@@ -596,7 +614,7 @@ void Renderer::showGlow()
 	downsampleGlow();
 	upsampleGlow();
 
-	upsample_fbo.color_textures[2]->copyTo(illumination_fbo.color_textures[0]);
+	upsample_tex1->copyTo(illumination_fbo.color_textures[0]);
 }
 
 void Renderer::downsampleGlow()
@@ -625,34 +643,45 @@ void Renderer::downsampleGlow()
 
 void Renderer::upsampleGlow()
 {
+	float w = Application::instance->window_width;
+	float h = Application::instance->window_height;
+
 	Shader* s = Shader::Get("blur_up");
 	Mesh* quad = Mesh::getQuad();
 	s->enable();
 
 	// first upsampling
-	upsample_fbo.bind();
+	upsample_fbo = Texture::getGlobalFBO(upsample_tex1);
+	upsample_fbo->bind();
 
 	s->setUniform("u_texture", downsample_fbo.color_textures[2], 0);
 	s->setUniform("u_texture_toblend", downsample_fbo.color_textures[1], 1);
-	s->setUniform("u_index", (int)0);
 
 	quad->render(GL_TRIANGLES);
-
+	
+	upsample_fbo->unbind();
+	
 	// second upsampling
-	s->setUniform("u_texture", upsample_fbo.color_textures[0], 0);
+	upsample_fbo = Texture::getGlobalFBO(upsample_tex2);
+	upsample_fbo->bind();
+
+	s->setUniform("u_texture", upsample_tex1, 0);
 	s->setUniform("u_texture_toblend", downsample_fbo.color_textures[0], 1);
-	s->setUniform("u_index", (int)1);
 
 	quad->render(GL_TRIANGLES);
+
+	upsample_fbo->unbind();
 
 	// third upsampling
-	s->setUniform("u_texture", upsample_fbo.color_textures[1], 0);
+	upsample_fbo = Texture::getGlobalFBO(upsample_tex1);
+	upsample_fbo->bind();
+
+	s->setUniform("u_texture", upsample_tex2, 0);
 	s->setUniform("u_texture_toblend", illumination_fbo.color_textures[0], 1);
-	s->setUniform("u_index", (int)2);
 
 	quad->render(GL_TRIANGLES);
 
-	upsample_fbo.unbind();
+	upsample_fbo->unbind();
 }
 
 void Renderer::showVolumetric(GTR::Scene* scene, Camera* camera) {

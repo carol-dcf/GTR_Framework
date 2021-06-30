@@ -285,6 +285,7 @@ void Application::renderDebugGUI(void)
 		}
 		if(renderer->show_glow) ImGui::SliderFloat("Glow Factor", &renderer->glow_factor, 1.0, 4.0);
 		if(renderer->show_chroma) ImGui::SliderFloat("Chromatic Factor", &renderer->chroma_amount, -0.15, 0.15);
+		if(renderer->show_lens) ImGui::SliderFloat("Lens Distortion Power", &renderer->lens_power, -1, 1);
 	}
 
 	//add info to the debug panel about the camera

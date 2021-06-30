@@ -1601,11 +1601,8 @@ in vec2 v_uv;
 
 uniform sampler2D u_texture;
 uniform sampler2D u_texture_toblend;
-uniform int u_index;
 
-layout(location = 0) out vec4 UpSample1;
-layout(location = 1) out vec4 UpSample2;
-layout(location = 2) out vec4 UpSample3;
+out vec4 FragColor;
 
 vec3 SampleBox (vec2 uv, vec2 texsize, sampler2D tex, float delta) 
 {
@@ -1617,7 +1614,7 @@ vec3 SampleBox (vec2 uv, vec2 texsize, sampler2D tex, float delta)
 void main()
 {
 	vec2 textureSize2d = textureSize(u_texture,0);
-    float texelSizeX = 1.0 / float(textureSize2d.x);
+	float texelSizeX = 1.0 / float(textureSize2d.x);
 	float texelSizeY = 1.0 / float(textureSize2d.y);
 	
 	vec3 color = SampleBox( v_uv, vec2(texelSizeX, texelSizeY), u_texture, 0.5 );
@@ -1625,9 +1622,7 @@ void main()
 	
 	color += color_toblend;
 	
-	if(u_index == 0) UpSample1 = vec4(color, 1.0);
-	if(u_index == 1) UpSample2 = vec4(color, 1.0);
-	if(u_index == 2) UpSample3 = vec4(color, 1.0);
+	FragColor = vec4(color, 1.0);
 }
 
 
@@ -1660,75 +1655,38 @@ void main()
 
 #version 330 core
 
+in vec2 v_uv;
+
 uniform vec2 u_iRes;
 uniform sampler2D u_texture;
+uniform float u_power;
 
 out vec4 FragColor;
 
-// Adapted from http://strlen.com/gfxengine/fisheyequake/
-vec2 fisheye_lookup(float fov, vec2 position)
+//Inspired by http://stackoverflow.com/questions/6030814/add-fisheye-effect-to-images-at-runtime-using-opengl-es
+void main() //Drag mouse over rendering area
 {
-	vec2 d = position - 0.5;
-	
-	float yaw = sqrt(d.x*d.x+d.y*d.y) * fov;
+	vec2 p = gl_FragCoord.xy * u_iRes.x; //normalized coords with some cheat
+	float prop = u_iRes.y / u_iRes.x;//screen proroption
+	vec2 m = vec2(0.5, 0.5 / prop);//center coords
+	vec2 d = p - m;//vector from center to current fragment
+	float r = sqrt(dot(d, d)); // distance of pixel from center
 
-	float roll = -atan(d.y, d.x);
-	float sx = sin(yaw) * cos(roll);
-	float sy = sin(yaw) * sin(roll);
-	float sz = cos(yaw);	
+	float power = sin(u_power * 2.0);
 
-	return vec2(sx, sy);
-}			
+	float bind = sqrt(dot(m, m));//stick to corners
 
-// lens
-void main()
-{
-  vec2 p = gl_FragCoord.xy * u_iRes.xy;
-	vec2 m = vec2(0.1);
-  float lensSize = 2.0;
-	float scale = 1.0;
+	// Weird formulas
+	vec2 uv;
+	if (power > 0.0)//fisheye
+		uv = m + normalize(d) * tan(r * power) * bind / tan( bind * power);
+	else if (power < 0.0)//antifisheye
+		uv = m + normalize(d) * atan(r * -power) * bind / atan(-power * bind);
+	else uv = p;//no effect for power = 1.0
+        
+  uv.y *= prop;
 
-  vec2 d = p - m;
-  float r = scale * sqrt(dot(d, d)); // distance of pixel from mouse
-	float rThresh = 0.3;
-
-	vec2 pos = d;
-	float apertureHalf = 0.5 * 90.0 * (3.14159 / 180.0);
-	float maxFactor = sin(apertureHalf);
-	
-  vec2 uv;
-
-	float avgD = (u_iRes.x + u_iRes.y)/2.0;
-	vec2 fMin = gl_FragCoord.xy/avgD - m;
-	float r2 = scale * sqrt(dot(fMin,fMin)); // distance of pixel from mouse
-	
-	if (r2 >= lensSize) FragColor = vec4(0,0,0, 1.0); 
-	else {
-	
-		// transition from inverse to full fisheye
-		vec2 p2 = gl_FragCoord.xy / u_iRes.x;//normalized coords with some cheat
-                                                        //(assume 1:1 prop)
-		float prop = u_iRes.x / u_iRes.y;
-		vec2 m2 = vec2(0.5, 0.5 / prop);//center coords
-		// vec2 m2 = vec2(m.x, 0.5 / prop);//center coords
-		vec2 d2 = p2 - m2;//vector from center to current fragment
-		float r2 = sqrt(dot(d2, d2)); // distance of pixel from center
-
-		float power = ( 2.0 * 3.141592 / (2.0 * sqrt(dot(m2, m2))) ) * (m.x - 0.5); //amount of effect
-
-		float bind;//radius of 1:1 effect
-		if (power > 0.0) bind = sqrt(dot(m2, m2));//stick to corners
-		else {if (prop < 1.0) bind = m2.x; else bind = m2.y;}//stick to borders
-
-		// eqn https://www.shadertoy.com/view/4s2GRR
-		if (power > 0.0)//fisheye
-			uv = m2 + normalize(d2) * tan(r2 * power) * bind / tan( bind * power);
-		else if (power < 0.0)//antifisheye
-			uv = m2 + normalize(d2) * atan(r2 * -power * 10.0) * bind / atan(-power * bind * 10.0);
-		else uv = p;//no effect for power = 1.0
-		
-		vec3 col = texture(u_texture, vec2(uv.x, -uv.y * prop)).xyz;//Second part of cheat
-	    //for round effect, not elliptical
-		FragColor = vec4(col, 1.0);
-	}
+	vec3 col = texture(u_texture, uv).rgb;
+    
+	FragColor = vec4(col, 1.0);
 }

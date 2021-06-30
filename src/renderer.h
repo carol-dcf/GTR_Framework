@@ -123,21 +123,26 @@ namespace GTR {
 
 		FBO irr_fbo;
 		Texture* probes_texture;
-		Vector3 dim = Vector3(2, 2, 2); //Vector3(8, 6, 12);
-		Vector3 start_pos = Vector3(-200, 10, -350);  //(-55, 10, -170)
-		Vector3 end_pos = Vector3(550, 250, 450);	  //(180, 150, 80)	
+		Vector3 dim = Vector3(8, 6, 12);
+		Vector3 start_pos = Vector3(-200, 10, -350);
+		Vector3 end_pos = Vector3(550, 250, 450);
 		Vector3 delta;
 
 		FBO decals_fbo;
 		FBO dof_fbo;
 		FBO downsample_fbo;
-		FBO upsample_fbo;
+		Texture* upsample_tex1;
+		Texture* upsample_tex2;
+		FBO* upsample_fbo;
+		FBO postpo_fbo;
 
 		float focus_plane;
 		float aperture;
 
 		float glow_factor;
 		float chroma_amount;
+
+		float lens_power;
 
 		std::vector<Vector3> random_points;
 
