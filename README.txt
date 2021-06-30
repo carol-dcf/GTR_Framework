@@ -9,17 +9,7 @@ You can control the render and pipeline mode through the ImGUI or trough key com
 
 - Keys -
 
-Change Render Mode:
-FORWARD:
-- t: ao (ambient occlusion)
-- u: uv's
-- i: normals (from normalmap)
-- o: texture (albedo)
-- p: default (single pass)
-- l: multipass lightning
-DEFERRED:
-- m: change between GBuffers or final buffer composition
-- r: show ssao+
+- z: Update Irradiance Cache
 
 - ImGUI -
 
@@ -55,6 +45,26 @@ DEFERRED:
 
 	Dithering:
 	Enable or disable the dithering effect for transperencies
+
+	Show probes:
+	Render irradiance probes.
+
+	Show reflection probe:
+	Render reflection probe.
+
+	Show Volumetric.
+
+	Show DoF:
+	Can change the plane in focus and the camera aperture with sliders.
+
+	Show Glow:
+	Can change the glow factor (how much glow you want) with slider.
+
+	Show Chromatic Aberration:
+	Can change the chromatic factor with slider.
+
+	Show Lens Distortion:
+	Can change the amount of distortion (negative or positive), anti-fisheye or fisheye.
 
 - Shadowmaps -
 
